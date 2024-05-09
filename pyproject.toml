@@ -23,6 +23,7 @@ click = "8.1"
 
 [project.dev-dependencies]
 pytest = "^8.2.0"
+pytest-postgresql = "6.0.0"
 mypy = "1.10"
 sqlalchemy-stubs = "0.4"
 black = "24.4.2"
