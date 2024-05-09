@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pdoflow"
+version = "0.1.0a"
+description = "A package to manage PDO compute nodes cooperatively."
+authors = [{name="William Fong", email="willfong@mit.edu"}]
+license = "MIT"
+readme = "README.md"
+
+[project.urls]
+Home = "https://tessgit.mit.edu/wcfong/pdoflow"
+
+[project.scripts]
+pdoflow = 'pdoflow:main'
+
+[project.dependencies]
+deal = "4.24.4"
+sqlalchemy = "2.0.29"
+click = "8.1"
+
+[project.dev-dependencies]
+pytest = "^8.2.0"
+mypy = "1.10"
+sqlalchemy-stubs = "0.4"
+black = "24.4.2"
+tox = "^4.0"
+tox-docker = "^4.1.0"
+
+[tool.mypy]
+plugins = sqlmypy
+
+[tool.isort]
+profile = "black"
