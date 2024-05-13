@@ -1,8 +1,8 @@
+import configurables as conf
 import sqlalchemy as sa
 from sqlalchemy import orm
-import configurables as conf
-from pdoflow.utils import register_process_guards
 
+from pdoflow.utils import register_process_guards
 
 DEFAULT_CONFIG_PATH = "~/.config/pdoflow/db.conf"
 
@@ -13,7 +13,9 @@ DEFAULT_CONFIG_PATH = "~/.config/pdoflow/db.conf"
 @conf.param("password")
 @conf.option("host", default="localhost")
 @conf.option("port", type=int, default=5432)
-def configure_engine(database_name, username, password, host, port, **engine_kwargs):
+def configure_engine(
+    database_name, username, password, host, port, **engine_kwargs
+):
     """
     Configure an SQLAlchemy engine object from a configuration file.
     """

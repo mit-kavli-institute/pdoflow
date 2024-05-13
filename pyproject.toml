@@ -41,3 +41,6 @@ plugins = "sqlmypy"
 
 [tool.isort]
 profile = "black"
+
+[tool.black]
+line-length=80
