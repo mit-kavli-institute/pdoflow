@@ -19,7 +19,7 @@ def configure_engine(database_name, username, password, host, port, **engine_kwa
     """
 
     url = sa.URL.create(
-        "postgresql",
+        "postgresql+psycopg",
         database=database_name,
         username=username,
         password=password,

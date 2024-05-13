@@ -11,8 +11,8 @@ def db_session(postgresql):
     a test function's exit.
     """
     url = URL.create(
-        "postgresql",
-        database=postgresql.info.db_name,
+        "postgresql+psycopg",
+        database=postgresql.info.dbname,
         username=postgresql.info.user,
         password=postgresql.info.password,
         host=postgresql.info.host,

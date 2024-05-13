@@ -10,11 +10,27 @@ import uuid
 from pdoflow.status import JobStatus, PostingStatus
 
 
+class PathType(sa.types.TypeDecorator):
+    """
+    Adapts PosixPath types to string while resolving their absolute
+    paths to be stored in the database.
+    """
+    impl = sa.types.String
+
+    cache_ok = True
+
+    def process_bind_param(self, value: pathlib.PosixPath, dialect: str):
+        return str(value.resolve())
+
+    def process_result_value(self, value: str, dialect: str):
+        return pathlib.Path(value)
+
+
 class Base(orm.DeclarativeBase):
     id: orm.Mapped[uuid.UUID] = orm.mapped_column(
         sa.Uuid,
         primary_key=True,
-        server_default=sa.text("uuid_generate_v4()")
+        server_default=sa.text("gen_random_uuid()")
     )
 
 
@@ -24,26 +40,27 @@ class CreatedOnMixin:
 
 
 class JobPosting(CreatedOnMixin, Base):
+
+    __tablename__ = "job_postings"
+
     poster: orm.Mapped[Optional[str]] = orm.mapped_column(default=getpass.getuser())
     status: orm.Mapped[PostingStatus] = orm.mapped_column(default=PostingStatus.paused)
     target_function: orm.Mapped[str]
-    entry_point: orm.Mapped[pathlib.Path] = orm.mapped_column(sa.String())
+    entry_point: orm.Mapped[str] = orm.mapped_column(PathType)
+
+    jobs: orm.Mapped[list["JobRecord"]] = orm.relationship(
+        "JobRecord",
+        back_populates="posting"
+    )
 
 
-@deal.inv(
-    lambda inst: inst.tries_remaining >= 0 or inst.tries_remaining is None,
-    message="Job instance should never have negative tries remaining."
-)
-@deal.inv(
-    lambda inst: inst.completed_on < inst.created_on,
-    message="Job should not be completed before created."
-)
 class JobRecord(CreatedOnMixin, Base):
+
+    __tablename__ = "job_records"
 
     posting_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
         sa.ForeignKey(
             JobPosting.id,
-            back_populates="jobs"
         )
     )
     posting: orm.Mapped[JobPosting] = orm.relationship(
@@ -52,11 +69,11 @@ class JobRecord(CreatedOnMixin, Base):
     )
 
     priority: orm.Mapped[int]
-    positional_arguments: orm.Mapped[sa.JSON]
-    keyword_arguments: orm.Mapped[Optional[sa.JSON]]
+    positional_arguments: orm.Mapped[tuple] = orm.mapped_column(sa.JSON)
+    keyword_arguments: orm.Mapped[Optional[dict]] = orm.mapped_column(sa.JSON)
     tries_remaining: orm.Mapped[int]
 
-    status: orm.Mapped[JobStatus]
+    status: orm.Mapped[JobStatus] = orm.mapped_column(default=JobStatus.waiting)
     exited_ok: orm.Mapped[Optional[bool]]
     completed_on: orm.Mapped[Optional[datetime]]
 
@@ -65,4 +82,8 @@ class JobRecord(CreatedOnMixin, Base):
             "tries_remaining >= 0",
             name="no_negative_tries"
         ),
+        sa.CheckConstraint(
+            "completed_on IS NULL OR created_on < completed_on",
+            name="no_unphysical_dates"
+        )
     )

@@ -30,7 +30,7 @@ def get_module_path(obj: typing.Any) -> pathlib.Path:
 
 
 def connect(dbapi_connection, connection_record):
-    connection_record["pid"] = os.getpid()
+    connection_record.info["pid"] = os.getpid()
 
 
 def checkout(dbapi_connection, connection_record, connection_proxy):
