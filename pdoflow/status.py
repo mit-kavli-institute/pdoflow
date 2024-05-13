@@ -1,4 +1,3 @@
-import sqlalchemy as sa
 import enum
 
 

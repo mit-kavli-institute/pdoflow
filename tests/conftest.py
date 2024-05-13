@@ -1,8 +1,10 @@
 import pytest
 from sqlalchemy import URL, create_engine, pool
+
+from pdoflow.io import Session
 from pdoflow.models import Base
 from pdoflow.utils import register_process_guards
-from pdoflow.io import Session
+
 
 @pytest.fixture
 def db_session(postgresql):
@@ -16,7 +18,7 @@ def db_session(postgresql):
         username=postgresql.info.user,
         password=postgresql.info.password,
         host=postgresql.info.host,
-        port=postgresql.info.port
+        port=postgresql.info.port,
     )
 
     engine = create_engine(url, poolclass=pool.NullPool)
