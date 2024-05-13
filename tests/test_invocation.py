@@ -1,9 +1,10 @@
-import example_package
 import sqlalchemy as sa
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from pdoflow import cluster, models, registry, status
+
+from . import example_package
 
 
 @given(st.one_of(st.none(), st.text()))
