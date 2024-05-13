@@ -2,7 +2,7 @@ import getpass
 import pathlib
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 import sqlalchemy as sa
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -20,10 +20,14 @@ class PathType(sa.types.TypeDecorator):
 
     cache_ok = True
 
-    def process_bind_param(self, value: pathlib.PosixPath, dialect: str):
+    def process_bind_param(
+        self, value: pathlib.PosixPath | None, dialect: sa.Dialect
+    ):
+        if value is None:
+            return None
         return str(value.resolve())
 
-    def process_result_value(self, value: str, dialect: str):
+    def process_result_value(self, value: Any, dialect: sa.Dialect):
         return pathlib.Path(value)
 
 
