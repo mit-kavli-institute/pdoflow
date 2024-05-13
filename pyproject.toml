@@ -7,8 +7,16 @@ name = "pdoflow"
 version = "0.1.0a"
 description = "A package to manage PDO compute nodes cooperatively."
 authors = [{name="William Fong", email="willfong@mit.edu"}]
-license = "MIT"
 readme = "README.md"
+
+dependencies = [
+    "deal==4.24.4",
+    "sqlalchemy==2.0.29",
+    "click==8.1",
+    "configurables @ git+ssh://git@tessgit.mit.edu/wcfong/configurables.git",
+    "psycopg[binary]==3.1.19",
+]
+
 
 [project.urls]
 Home = "https://tessgit.mit.edu/wcfong/pdoflow"
@@ -16,22 +24,20 @@ Home = "https://tessgit.mit.edu/wcfong/pdoflow"
 [project.scripts]
 pdoflow = 'pdoflow:main'
 
-[project.dependencies]
-deal = "4.24.4"
-sqlalchemy = "2.0.29"
-click = "8.1"
-
-[project.dev-dependencies]
-pytest = "^8.2.0"
-pytest-postgresql = "6.0.0"
-mypy = "1.10"
-sqlalchemy-stubs = "0.4"
-black = "24.4.2"
-tox = "^4.0"
-tox-docker = "^4.1.0"
+[project.optional-dependencies]
+dev = [
+    "pytest==8.2.0",
+    "pytest-postgresql==6.0.0",
+    "mypy==1.10",
+    "sqlalchemy-stubs==0.4",
+    "black==24.4.2",
+    "tox==4.0",
+    "tox-docker==4.1.0",
+    "hypothesis==6.100.5"
+]
 
 [tool.mypy]
-plugins = sqlmypy
+plugins = "sqlmypy"
 
 [tool.isort]
 profile = "black"
