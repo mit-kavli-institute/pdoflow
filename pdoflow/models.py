@@ -33,7 +33,7 @@ class PathType(sa.types.TypeDecorator):
 
 class Base(DeclarativeBase):
     id: Mapped[uuid.UUID] = mapped_column(
-        sa.Uuid, primary_key=True, server_default=sa.text("gen_random_uuid()")
+        primary_key=True, server_default=sa.text("gen_random_uuid()")
     )
 
 
