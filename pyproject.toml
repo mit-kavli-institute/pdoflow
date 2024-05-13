@@ -37,7 +37,7 @@ dev = [
 ]
 
 [tool.mypy]
-plugins = "sqlmypy"
+plugins = "sqlalchemy.ext.mypy.plugin"
 
 [tool.isort]
 profile = "black"
