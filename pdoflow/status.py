@@ -13,3 +13,7 @@ class JobStatus(enum.Enum):
     executing = 2
     done = 3
     errored_out = 4
+
+    def exited(self) -> bool:
+        cls = type(self)
+        return self in (cls.done, cls.errored_out)

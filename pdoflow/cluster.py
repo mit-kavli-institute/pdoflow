@@ -12,7 +12,6 @@ import sqlalchemy as sa
 from pdoflow.io import Session
 from pdoflow.models import JobPosting, JobRecord
 from pdoflow.registry import JobRegistry, Registry
-from pdoflow.status import PostingStatus
 
 
 def job(name: Optional[str] = None, registry: JobRegistry = Registry):
@@ -76,20 +75,18 @@ class ClusterPool(contextlib.AbstractContextManager):
         executing = True
 
         with Session() as db:
-            q = sa.select(JobPosting).where(JobPosting.id == posting_id)
+            q = sa.select(JobPosting.percent_done).where(
+                JobPosting.id == posting_id
+            )
 
             while executing:
-                posting = db.scalar(q)
+                amount_finished = db.scalar(q)
 
-                if posting is None:
+                if amount_finished is None:
                     raise ValueError(f"No post found for {posting_id}")
 
-                if posting.status == PostingStatus.paused:
-                    executing &= False
-                elif posting.status == PostingStatus.finished:
-                    executing &= False
-                elif posting.status == PostingStatus.errored_out:
-                    executing &= False
+                executing = amount_finished < 100.0
+
                 if executing:
                     sleep(poll_time)
         return

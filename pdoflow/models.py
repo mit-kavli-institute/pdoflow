@@ -6,9 +6,9 @@ from datetime import datetime
 from typing import Any, Optional
 
 import sqlalchemy as sa
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import Select
-from sqlalchemy.util import hybridproperty
 
 from pdoflow.status import JobStatus, PostingStatus
 from pdoflow.utils import load_function
@@ -60,6 +60,39 @@ class JobPosting(CreatedOnMixin, Base):
         "JobRecord", back_populates="posting"
     )
 
+    @hybrid_property
+    def percent_done(self) -> float:
+        n_jobs = 0
+        n_stopped = 0
+
+        for job in self.jobs:
+            if job.status != JobStatus.waiting:
+                n_stopped += 1
+            n_jobs += 1
+
+        if n_jobs == 0:
+            return float("nan")
+
+        return (n_stopped / n_jobs) * 100.0
+
+    @percent_done.inplace.expression
+    @classmethod
+    def _percent_done(cls):
+        count_q = (
+            sa.select(sa.func.count(JobRecord.id))
+            .where(
+                JobRecord.posting_id == cls.id,
+            )
+            .correlate(cls)
+        )
+
+        total = count_q.label("total")
+        finished = count_q.where(
+            JobRecord.status.in_((JobStatus.done, JobStatus.errored_out))
+        ).label("finished")
+
+        return (finished / total) * 100.0
+
 
 class JobRecord(CreatedOnMixin, Base):
 
@@ -91,11 +124,11 @@ class JobRecord(CreatedOnMixin, Base):
         ),
     )
 
-    @hybridproperty
+    @hybrid_property
     def pos_args(self) -> tuple:
         return self.positional_arguments
 
-    @hybridproperty
+    @hybrid_property
     def kwargs(self) -> dict[str, Any]:
         return self.keyword_arguments if self.keyword_arguments else {}
 

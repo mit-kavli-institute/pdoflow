@@ -80,38 +80,6 @@ def test_default_status(db_session, workload):
         )
 
 
-# @given(
-#     st.lists(
-#         st.tuples(
-#             st.integers(), st.floats(allow_nan=False, allow_infinity=False)
-#         ),
-#         min_size=1,
-#     )
-# )
-# @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-# def test_work_instantiation(db_session, workload):
-#     registry.Registry.clear_registry()
-#     cluster.job()(example_package.foo)
-#
-#     posting_id, _ = registry.Registry[example_package.foo].post_work(
-#         workload, []
-#     )
-#
-#     with cluster.ClusterPool(max_workers=1) as pool:
-#         pool.await_posting_completion(posting_id)
-#
-#     with db_session as db:
-#         q = (
-#             sa.select(models.JobRecord)
-#             .join(models.JobRecord.posting)
-#             .where(models.JobPosting.id == posting_id)
-#         )
-#         assert all(
-#             job.status == status.JobStatus.done
-#             for job in db.scalars(q)
-#         )
-
-
 @given(
     st.lists(
         st.tuples(
@@ -191,3 +159,35 @@ def test_dynamic_execution(db_session, workload, path):
 def test_dynamic_load(path):
     func = load_function(path)
     assert func(10, 10.0) == 10 * 10.0
+
+
+@given(
+    st.lists(
+        st.tuples(
+            st.integers(), st.floats(allow_nan=False, allow_infinity=False)
+        ),
+        min_size=1,
+    )
+)
+@settings(
+    suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None
+)
+def test_work_instantiation(db_session, workload):
+    registry.Registry.clear_registry()
+    cluster.job()(example_package.foo)
+
+    posting_id, _ = registry.Registry[example_package.foo].post_work(
+        workload, []
+    )
+
+    with cluster.ClusterPool(max_workers=1) as pool:
+        pool.await_posting_completion(posting_id)
+
+    with db_session as db:
+        q = (
+            sa.select(models.JobRecord)
+            .join(models.JobRecord.posting)
+            .where(models.JobPosting.id == posting_id)
+        )
+        for job in db.scalars(q):
+            assert job.status.exited()
