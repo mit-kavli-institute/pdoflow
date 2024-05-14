@@ -5,6 +5,7 @@ from hypothesis import strategies as st
 from pdoflow import cluster, models, registry, status
 from pdoflow.io import Session
 from pdoflow.utils import load_function
+from tests.utils import CoverageWorker
 
 from . import example_package
 
@@ -180,7 +181,9 @@ def test_work_instantiation(db_session, workload):
         workload, []
     )
 
-    with cluster.ClusterPool(max_workers=1) as pool:
+    with cluster.ClusterPool(
+        max_workers=1, worker_class=CoverageWorker
+    ) as pool:
         pool.await_posting_completion(posting_id)
 
     with db_session as db:

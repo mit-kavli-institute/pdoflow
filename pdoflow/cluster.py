@@ -52,17 +52,22 @@ class ClusterPool(contextlib.AbstractContextManager):
     loaded and cached within the context of this pool.
     """
 
-    def __init__(self, max_workers: int = 1):
+    def __init__(
+        self,
+        max_workers: int = 1,
+        worker_class: type[ClusterProcess] = ClusterProcess,
+    ):
         """
         Create a new pool with an upper limit of how many workers
         may be spawned.
         """
         self.max_workers = max_workers
         self.workers: list[mp.Process] = []
+        self.WorkerClass = worker_class
 
     def __enter__(self):
         for _ in range(self.max_workers):
-            self.workers.append(ClusterProcess(daemon=True))
+            self.workers.append(self.WorkerClass(daemon=True))
             self.workers[-1].start()
         return self
 
