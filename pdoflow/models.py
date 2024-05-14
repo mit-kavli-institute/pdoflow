@@ -1,13 +1,17 @@
 import getpass
 import pathlib
+import typing
 import uuid
 from datetime import datetime
 from typing import Any, Optional
 
 import sqlalchemy as sa
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from sqlalchemy.sql.expression import Select
+from sqlalchemy.util import hybridproperty
 
 from pdoflow.status import JobStatus, PostingStatus
+from pdoflow.utils import load_function
 
 
 class PathType(sa.types.TypeDecorator):
@@ -50,7 +54,7 @@ class JobPosting(CreatedOnMixin, Base):
     poster: Mapped[Optional[str]] = mapped_column(default=getpass.getuser())
     status: Mapped[PostingStatus] = mapped_column(default=PostingStatus.paused)
     target_function: Mapped[str]
-    entry_point: Mapped[str] = mapped_column(PathType)
+    entry_point: Mapped[str]
 
     jobs: Mapped[list["JobRecord"]] = relationship(
         "JobRecord", back_populates="posting"
@@ -86,3 +90,34 @@ class JobRecord(CreatedOnMixin, Base):
             name="no_unphysical_dates",
         ),
     )
+
+    @hybridproperty
+    def pos_args(self) -> tuple:
+        return self.positional_arguments
+
+    @hybridproperty
+    def kwargs(self) -> dict[str, Any]:
+        return self.keyword_arguments if self.keyword_arguments else {}
+
+    @classmethod
+    def get_available(cls, batchsize: int) -> Select:
+        q = (
+            sa.select(cls)
+            .join(cls.posting)
+            .where(
+                JobPosting.status == PostingStatus.executing,
+                JobRecord.status == JobStatus.waiting,
+                JobRecord.tries_remaining > 0,
+            )
+            .with_for_update(skip_locked=True)
+            .limit(batchsize)
+        )
+        return q
+
+    def execute(self) -> typing.Any:
+        function = load_function(self.posting.entry_point)
+        kwargs = self.keyword_arguments if self.keyword_arguments else {}
+        result = function(*self.positional_arguments, **kwargs)
+        self.status = JobStatus.done
+        self.exited_ok = True
+        return result

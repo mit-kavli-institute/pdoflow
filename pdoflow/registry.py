@@ -15,7 +15,7 @@ class Job:
     def post_work(self, posargs: list[tuple], kwargs: list[dict]):
         posting = JobPosting(
             target_function=self.target.__name__,
-            entry_point=get_module_path(self.target).resolve(),
+            entry_point=get_module_path(self.target),
             status=PostingStatus.executing,
         )
 

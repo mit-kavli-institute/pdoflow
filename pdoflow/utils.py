@@ -4,15 +4,16 @@ of life utility logic.
 
 Ideally these functions should be made as pure as possible.
 """
+import inspect
 import os
 import typing
-import inspect
-import pathlib
+from functools import lru_cache
 
+import deal
 import sqlalchemy as sa
 
 
-def get_module_path(obj: typing.Any) -> pathlib.Path:
+def get_module_path(obj: typing.Any) -> str:
     """
     Attempt to resolve the file source of the given object.
     """
@@ -20,7 +21,7 @@ def get_module_path(obj: typing.Any) -> pathlib.Path:
     try:
         if module is None or module.__file__ is None:
             raise ValueError
-        return pathlib.Path(module.__file__)
+        return module.__name__ + "." + obj.__name__
     except (AttributeError, ValueError):
         raise ValueError(
             f"{obj} not tied to a module defined in a file. Object likely"
@@ -54,3 +55,15 @@ def register_process_guards(engine: sa.Engine):
     sa.event.listens_for(engine, "checkout")(checkout)
 
     return engine
+
+
+@deal.pre(
+    lambda path: all(ord(c) < 128 for c in path),
+    message="Given entry point must be ascii",
+)
+@lru_cache
+def load_function(path: str):
+    module_path, func_name = path.rsplit(".", maxsplit=1)
+    module = __import__(module_path, fromlist=[func_name])
+    function = getattr(module, func_name)
+    return function
