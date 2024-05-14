@@ -21,7 +21,7 @@ def get_module_path(obj: typing.Any) -> str:
     try:
         if module is None or module.__file__ is None:
             raise ValueError
-        return module.__name__ + "." + obj.__name__
+        return f"{module.__name__}.{obj.__name__}"
     except (AttributeError, ValueError):
         raise ValueError(
             f"{obj} not tied to a module defined in a file. Object likely"
