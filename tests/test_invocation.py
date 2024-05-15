@@ -7,7 +7,7 @@ from pdoflow.io import Session
 from pdoflow.utils import load_function
 from tests.utils import CoverageWorker
 
-from . import example_package
+from . import example_package, strategies
 
 
 @given(st.one_of(st.none(), st.text()))
@@ -24,14 +24,7 @@ def test_registration(name):
         assert name in registry.Registry
 
 
-@given(
-    st.lists(
-        st.tuples(
-            st.integers(), st.floats(allow_nan=False, allow_infinity=False)
-        ),
-        min_size=1,
-    )
-)
+@given(strategies.foo_workload())
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 def test_workupload(db_session, workload):
 
@@ -51,14 +44,7 @@ def test_workupload(db_session, workload):
         assert len(job_ids) == db.scalar(q)
 
 
-@given(
-    st.lists(
-        st.tuples(
-            st.integers(), st.floats(allow_nan=False, allow_infinity=False)
-        ),
-        min_size=1,
-    )
-)
+@given(strategies.foo_workload())
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 def test_default_status(db_session, workload):
 
@@ -82,12 +68,7 @@ def test_default_status(db_session, workload):
 
 
 @given(
-    st.lists(
-        st.tuples(
-            st.integers(), st.floats(allow_nan=False, allow_infinity=False)
-        ),
-        min_size=1,
-    ),
+    strategies.foo_workload(),
     st.integers(min_value=1, max_value=1000),
 )
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
@@ -113,12 +94,7 @@ def test_no_duplicate_work(db_session, workload, batchsize):
 
 
 @given(
-    st.lists(
-        st.tuples(
-            st.integers(), st.floats(allow_nan=False, allow_infinity=False)
-        ),
-        min_size=1,
-    ),
+    strategies.foo_workload(),
     st.just("tests.example_package.foo"),
 )
 @settings(
@@ -162,14 +138,7 @@ def test_dynamic_load(path):
     assert func(10, 10.0) == 10 * 10.0
 
 
-@given(
-    st.lists(
-        st.tuples(
-            st.integers(), st.floats(allow_nan=False, allow_infinity=False)
-        ),
-        min_size=1,
-    )
-)
+@given(strategies.foo_workload())
 @settings(
     suppress_health_check=[HealthCheck.function_scoped_fixture], deadline=None
 )

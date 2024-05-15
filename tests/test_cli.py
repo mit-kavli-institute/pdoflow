@@ -5,14 +5,11 @@ from hypothesis import strategies as st
 from pdoflow import cli, cluster, registry, status
 from pdoflow.utils import load_function
 
+from . import strategies
+
 
 @given(
-    st.lists(
-        st.tuples(
-            st.integers(), st.floats(allow_nan=False, allow_infinity=False)
-        ),
-        min_size=1,
-    ),
+    strategies.foo_workload(),
     st.just("tests.example_package.foo"),
 )
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
