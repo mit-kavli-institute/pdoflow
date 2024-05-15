@@ -40,6 +40,20 @@ class Base(DeclarativeBase):
         primary_key=True, server_default=sa.text("gen_random_uuid()")
     )
 
+    @classmethod
+    def select(cls, *fields: sa.ColumnElement | str) -> sa.Select:
+        """
+        Helper function to avoid import statements just for Select objects.
+        """
+        if len(fields) > 0:
+            columns = []
+            for field in fields:
+                col = getattr(cls, field) if isinstance(field, str) else field
+                columns.append(col)
+            return sa.select(*columns)
+        else:
+            return sa.select(cls)
+
 
 class CreatedOnMixin:
     created_on: Mapped[datetime] = mapped_column(
@@ -60,6 +74,44 @@ class JobPosting(CreatedOnMixin, Base):
         "JobRecord", back_populates="posting"
     )
 
+    def __len__(self):
+        return self.total_jobs
+
+    @hybrid_property
+    def total_jobs(self) -> int:
+        return len(self.jobs)
+
+    @total_jobs.inplace.expression
+    @classmethod
+    def _total_jobs(cls):
+        q = (
+            cls.select(sa.func.count(JobRecord.id))
+            .where(JobRecord.posting_id == cls.id)
+            .correlate(cls)
+            .label("total_jobs")
+        )
+        return q
+
+    @hybrid_property
+    def total_jobs_done(self):
+        return len(
+            list(filter(lambda j: j.status != JobStatus.waiting, self.jobs))
+        )
+
+    @total_jobs_done.inplace.expression
+    @classmethod
+    def _total_jobs_done(cls):
+        q = (
+            cls.select(sa.func.count(JobRecord.id))
+            .where(
+                JobRecord.posting_id == cls.id,
+                JobRecord.status != JobStatus.waiting,
+            )
+            .correlate(cls)
+            .label("total_jobs_done")
+        )
+        return q
+
     @hybrid_property
     def percent_done(self) -> float:
         n_jobs = 0
@@ -78,20 +130,7 @@ class JobPosting(CreatedOnMixin, Base):
     @percent_done.inplace.expression
     @classmethod
     def _percent_done(cls):
-        count_q = (
-            sa.select(sa.func.count(JobRecord.id))
-            .where(
-                JobRecord.posting_id == cls.id,
-            )
-            .correlate(cls)
-        )
-
-        total = count_q.label("total")
-        finished = count_q.where(
-            JobRecord.status.in_((JobStatus.done, JobStatus.errored_out))
-        ).label("finished")
-
-        return (finished / total) * 100.0
+        return (cls.total_jobs_done / cls.total_jobs) * 100.0
 
 
 class JobRecord(CreatedOnMixin, Base):

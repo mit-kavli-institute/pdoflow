@@ -75,6 +75,22 @@ class ClusterPool(contextlib.AbstractContextManager):
         for worker in self.workers:
             worker.terminate()
 
+    def upkeep(self):
+        """
+        This method should be called within an active pool. This causes
+        the pool to remove dead workers and 'resurrect' now empty
+        spots in the worker pool.
+        """
+        dead_idx = []
+        for i, worker in enumerate(self.workers):
+            if not worker.is_alive:
+                dead_idx.append(i)
+                worker.close()
+
+        for idx in dead_idx:
+            self.workers[idx] = self.WorkerClass(daemon=True)
+            self.workers[idx].start()
+
     def await_posting_completion(self, posting_id: UUID, poll_time=0.5):
 
         executing = True
