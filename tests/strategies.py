@@ -8,3 +8,7 @@ def foo_workload():
         ),
         min_size=1,
     )
+
+
+def failure_workload():
+    return st.lists(st.integers(), min_size=1)

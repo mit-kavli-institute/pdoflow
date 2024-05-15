@@ -8,10 +8,12 @@ from typing import Optional
 from uuid import UUID
 
 import sqlalchemy as sa
+from loguru import logger
 
 from pdoflow.io import Session
 from pdoflow.models import JobPosting, JobRecord
 from pdoflow.registry import JobRegistry, Registry
+from pdoflow.status import JobStatus
 
 
 def job(name: Optional[str] = None, registry: JobRegistry = Registry):
@@ -29,9 +31,21 @@ class ClusterProcess(mp.Process):
 
     def process_job_records(self, jobs: list[JobRecord]):
         for job in jobs:
-            job.execute()
-            # Successfully executed
-            self._session.commit()
+            try:
+                job.execute()
+            except KeyboardInterrupt:
+                logger.warning("Encountered user interrupt, releasing jobs")
+                self._session.rollback()
+                raise
+            except Exception as e:
+                logger.exception(f"Worker encountered {e}")
+                if job.tries_remaining < 1:
+                    job.exited_ok = False
+                    job.status = JobStatus.errored_out
+                else:
+                    job.tries_remaining -= 1
+            finally:
+                self._session.commit()
 
     def obtain_jobs(self, max_batchsize: int) -> list[JobRecord]:
         q = JobRecord.get_available(max_batchsize)
