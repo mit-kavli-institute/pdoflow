@@ -1,7 +1,5 @@
 # PDOFlow
-
 A Python project which manages job queues using PostgreSQL as the source of truth.
-
 
 # Usage
 There are two entrypoints required to run ``PDOFlow``. The first
@@ -25,13 +23,12 @@ def some_unit_of_work(a: int, b: float, c: str) -> str:
     with open(c, "wt") as fout:
         fout.write(f"{result:.06f}")
 
-
 # File mymodule/*/workload.py | doesn't necessarily need to be in another
 # file
 
 from pdoflow.registry import Registry
-
 from mymodule.foo import some_unit_of_work
+
 
 Registry[some_unit_of_work].post_work(
     (
@@ -41,7 +38,6 @@ Registry[some_unit_of_work].post_work(
     []  # Work is being done through positional arguments, no keyword
         # parameters are being used.
 )
-
 # Done from the client's point of view.
 ```
 
