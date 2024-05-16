@@ -103,3 +103,7 @@ a worker pool server.
 package is being used in a scientific compute context.
 - See how complicated it would be to orchistrate worker pools. So they
 can coordinate and pass workloads to each other using PostgreSQL.
+
+
+# Changelog
+0.1.1 Worker pools now only pull jobs from their user.

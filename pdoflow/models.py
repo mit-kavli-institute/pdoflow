@@ -191,6 +191,7 @@ class JobRecord(CreatedOnMixin, Base):
             sa.select(cls)
             .join(cls.posting)
             .where(
+                JobPosting.poster == getpass.getuser(),
                 JobPosting.status == PostingStatus.executing,
                 JobRecord.status == JobStatus.waiting,
                 JobRecord.tries_remaining > 0,
