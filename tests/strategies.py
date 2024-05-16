@@ -11,4 +11,4 @@ def foo_workload():
 
 
 def failure_workload():
-    return st.lists(st.integers(), min_size=1)
+    return st.lists(st.tuples(st.integers()), min_size=1)

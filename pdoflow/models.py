@@ -74,6 +74,12 @@ class JobPosting(CreatedOnMixin, Base):
         "JobRecord", back_populates="posting"
     )
 
+    def __repr__(self):
+        return (
+            f"<JobPosting {self.id}: {self.status} -> "
+            f"{self.entry_point}[{self.target_function}>"
+        )
+
     def __len__(self):
         return self.total_jobs
 
@@ -163,6 +169,9 @@ class JobRecord(CreatedOnMixin, Base):
         ),
     )
 
+    def __repr__(self):
+        return f"<Job {self.id} f({self.pos_args}): {self.status}>"
+
     @hybrid_property
     def pos_args(self) -> tuple:
         return self.positional_arguments
@@ -193,3 +202,8 @@ class JobRecord(CreatedOnMixin, Base):
         self.status = JobStatus.done
         self.exited_ok = True
         return result
+
+    def mark_as_bad(self):
+        self.exited_ok = False
+        self.status = JobStatus.errored_out
+        self.tries_remaining = 0
