@@ -51,7 +51,6 @@ which will execute posted workloads.
 
 Or you may run pool in a Python program:
 ```python
-
 from pdoflow import cluster
 from time import sleep
 
