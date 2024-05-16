@@ -164,6 +164,7 @@ class JobRecord(CreatedOnMixin, Base):
 
     status: Mapped[JobStatus] = mapped_column(default=JobStatus.waiting)
     exited_ok: Mapped[Optional[bool]]
+    work_started_on: Mapped[Optional[datetime]]
     completed_on: Mapped[Optional[datetime]]
 
     __table_args__ = (
@@ -184,6 +185,17 @@ class JobRecord(CreatedOnMixin, Base):
     @hybrid_property
     def kwargs(self) -> dict[str, Any]:
         return self.keyword_arguments if self.keyword_arguments else {}
+
+    @hybrid_property
+    def waiting_time(self):
+        if self.work_started_on is None:
+            return None
+        return self.created_on - self.work_started_on
+
+    @waiting_time.inplace.expression
+    @classmethod
+    def _waiting_time(self):
+        raise NotImplementedError
 
     @classmethod
     def get_available(cls, batchsize: int) -> Select:
