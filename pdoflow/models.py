@@ -36,6 +36,11 @@ class PathType(sa.types.TypeDecorator):
 
 
 class Base(DeclarativeBase):
+    """
+    A Base class for PDOFlow which defines common attributes and logic
+    for all dervied PDOFlow database Models.
+    """
+
     id: Mapped[uuid.UUID] = mapped_column(
         primary_key=True, server_default=sa.text("gen_random_uuid()")
     )
