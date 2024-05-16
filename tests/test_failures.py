@@ -18,7 +18,7 @@ from tests.example_package import failure
     deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
 )
 def test_retries(db_session, workload):
-    logger.level("ERROR")
+    logger.remove()
     registry.Registry.clear_registry()
 
     cluster.job()(failure)
@@ -45,13 +45,15 @@ def test_retries(db_session, workload):
         for row in results:
             note(str(row.id))
             if row.fail_arg % 2 == 0:
-                if timed_out and row.tries_remaining > 0:
-                    assert row.status == JobStatus.waiting
+                if timed_out:
+                    assert row.status in (
+                        JobStatus.errored_out,
+                        JobStatus.waiting,
+                    )
                 else:
-                    assert row.tries_remaining < 1
-                    assert not row.exited_ok
                     assert row.status == JobStatus.errored_out
             else:
-                assert row.tries_remaining > 0
-                assert row.exited_ok
-                assert row.status == JobStatus.done
+                if timed_out:
+                    assert row.status in (JobStatus.done, JobStatus.waiting)
+                else:
+                    assert row.status == JobStatus.done

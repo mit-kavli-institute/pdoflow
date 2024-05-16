@@ -24,9 +24,7 @@ def db_session(postgresql):
     engine = create_engine(url, poolclass=pool.NullPool)
     register_process_guards(engine)
 
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=engine, checkfirst=True)
 
     Session.configure(bind=engine)
     yield Session()
-
-    Base.metadata.drop_all(bind=engine)
