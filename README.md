@@ -75,6 +75,16 @@ While functions are executed, any return values are dropped and ignored.
 So these functions should be impure and have some non-volatile
 side-effect.
 
+
+# Advantages
+Unlike other cluster packages which require OS/Kernel level libraries or
+an additional message queue like RabbitMQ or Redis (which open-source
+standing has been flaky recently); this package only requires PostgreSQL
+(or another database with transaction level UPDATE LOCK such as Oracle).
+
+So long as code is importable, this package can run on any computing
+machine.
+
 # Security Implications
 This package runs arbitrary code passed from clients. Some mitigations
 have been made. For example, all posted parameters must be JSON
@@ -87,6 +97,10 @@ job queue should be limited.
 
 
 # TODO
+- Implement a ``hardware`` decorator which is added to functions which
+require specific hardware which might not be available an arbitrary
+compute cluster. These should be somehow passed/identified when creating
+a worker pool server.
 - Implement priority queues while negating starvation problems.
 - Figure out mechanism for passing ``NaN`` and ``inf`` values since this
 package is being used in a scientific compute context.
