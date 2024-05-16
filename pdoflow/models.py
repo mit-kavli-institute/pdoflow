@@ -190,12 +190,32 @@ class JobRecord(CreatedOnMixin, Base):
     def waiting_time(self):
         if self.work_started_on is None:
             return None
-        return self.created_on - self.work_started_on
+        return self.work_started_on - self.created_on
 
     @waiting_time.inplace.expression
     @classmethod
-    def _waiting_time(self):
-        raise NotImplementedError
+    def _waiting_time(cls):
+        return (
+            sa.func.coalesce(cls.work_started_on, sa.func.now())
+            - cls.created_on
+        )
+
+    @hybrid_property
+    def time_elapsed(self):
+        if self.work_started_on is None:
+            return None
+
+        if self.completed_on is None:
+            return datetime.now() - self.work_started_on
+
+        return self.completed_on - self.work_started_on
+
+    @time_elapsed.inplace.expression
+    @classmethod
+    def _time_elapsed(cls):
+        return sa.func.coalesce(
+            cls.completed_on, sa.func.now
+        ) - sa.func.coalesce(cls.work_started_on, sa.func.now())
 
     @classmethod
     def get_available(cls, batchsize: int) -> Select:
@@ -215,7 +235,11 @@ class JobRecord(CreatedOnMixin, Base):
     def execute(self) -> typing.Any:
         function = load_function(self.posting.entry_point)
         kwargs = self.keyword_arguments if self.keyword_arguments else {}
+        self.work_started_on = datetime.now()
+
         result = function(*self.positional_arguments, **kwargs)
+
+        self.completed_on = datetime.now()
         self.status = JobStatus.done
         self.exited_ok = True
         return result
@@ -224,3 +248,4 @@ class JobRecord(CreatedOnMixin, Base):
         self.exited_ok = False
         self.status = JobStatus.errored_out
         self.tries_remaining = 0
+        self.completed_on = datetime.now()
