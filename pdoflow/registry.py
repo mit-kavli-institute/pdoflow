@@ -1,3 +1,8 @@
+"""
+This module defines Registries which are convenience classes designed to
+easily reference functions to post jobs on.
+"""
+
 from dataclasses import dataclass, field
 from itertools import zip_longest
 from typing import Callable, Optional
