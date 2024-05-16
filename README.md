@@ -84,3 +84,11 @@ However, anyone can point to a file on disk. So the user owning the
 cluster worker pool should be given the smallest amount of privileges.
 And the users authorized to SELECT, UPDATE, and INSERT into the
 job queue should be limited.
+
+
+# TODO
+- Implement priority queues while negating starvation problems.
+- Figure out mechanism for passing ``NaN`` and ``inf`` values since this
+package is being used in a scientific compute context.
+- See how complicated it would be to orchistrate worker pools. So they
+can coordinate and pass workloads to each other using PostgreSQL.
