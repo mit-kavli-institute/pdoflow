@@ -12,10 +12,8 @@ The use case is very simple. Decorate a function and push work to that
 function.
 
 ```python
-from pdoflow import cluster
-
-
 # File mymodule/*/foo.py
+from pdoflow import cluster
 
 @cluster.job()
 def some_unit_of_work(a: int, b: float, c: str) -> str:
