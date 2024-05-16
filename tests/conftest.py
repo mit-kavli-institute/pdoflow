@@ -1,9 +1,19 @@
+import os
+
 import pytest
+from hypothesis import Verbosity, settings
 from sqlalchemy import URL, create_engine, pool
 
 from pdoflow.io import Session
 from pdoflow.models import Base
 from pdoflow.utils import register_process_guards
+
+settings.register_profile("ci", max_examples=1000)
+settings.register_profile("dev", max_examples=100)
+settings.register_profile(
+    "debug", max_examples=100, verbosity=Verbosity.verbose
+)
+settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "default"))
 
 
 @pytest.fixture
