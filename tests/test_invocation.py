@@ -153,7 +153,7 @@ def test_work_instantiation(db_session, workload):
     with cluster.ClusterPool(
         max_workers=1, worker_class=CoverageWorker
     ) as pool:
-        pool.await_posting_completion(posting_id)
+        pool.await_posting_completion(posting_id, max_wait=1.0)
 
     with db_session as db:
         q = (

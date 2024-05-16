@@ -4,6 +4,5 @@ from pdoflow.cluster import ClusterProcess
 
 
 class CoverageWorker(ClusterProcess):
-    def run(self):
+    def _pre_run_init(self):
         coverage.process_startup()
-        super().run()

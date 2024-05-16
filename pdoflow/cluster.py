@@ -71,6 +71,9 @@ class ClusterProcess(mp.Process):
         )
         self._bad_postings: set[UUID] = set()
 
+    def _pre_run_init(self):
+        pass
+
     def process_job_records(self, jobs: list[JobRecord]):
         for job in jobs:
             if job.posting_id in self._bad_postings:
@@ -124,6 +127,7 @@ class ClusterProcess(mp.Process):
         return list(jobs)
 
     def run(self):
+        self._pre_run_init()
         with self._session:
             while True:
                 jobs = self.obtain_jobs(1)
