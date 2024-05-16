@@ -75,6 +75,10 @@ Work is posted to a PostgreSQL database utilizing JSON serializable
 fields for work parameters. The biggest draw back currently is the
 inability to pass ``NaN`` and ``inf`` values.
 
+While functions are executed, any return values are dropped and ignored.
+So these functions should be impure and have some non-volatile
+side-effect.
+
 # Security Implications
 This package runs arbitrary code passed from clients. Some mitigations
 have been made. For example, all posted parameters must be JSON
