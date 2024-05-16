@@ -8,6 +8,12 @@ from pdoflow.utils import load_function
 from . import strategies
 
 
+def test_main_entry_point():
+    runner = CliRunner()
+    result = runner.invoke(cli.pdoflow_main, ["--help"])
+    assert result.exit_code == 0
+
+
 @given(
     strategies.foo_workload(),
     st.just("tests.example_package.foo"),
