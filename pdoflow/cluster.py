@@ -1,5 +1,6 @@
 """
-This module implements the main entrypoint for PDOFlow.
+This module defines the runtime logic for pdoflow worker pools and how
+jobs are managed.
 """
 import contextlib
 import multiprocessing as mp
@@ -17,6 +18,26 @@ from pdoflow.registry import JobRegistry, Registry
 
 
 def job(name: Optional[str] = None, registry: JobRegistry = Registry):
+    """
+    Register a function as a entrypoint for cluster operations. By
+    default the function's `__name__` is used as an identifier within
+    a Registry. A provided `name` will override this behavior to whatever
+    string a developer uses.
+
+    The decorated function must be recallable by an import statement.
+    Statements made within an interactive Python shell will not execute
+    as they cannot be called from an independent Python instance.
+
+    Paramters
+    ---------
+    name: Optional[str]
+        Override the name that will be used to recall this function
+        when posting work.
+    registry: JobRegistry
+        The reigstry to associate the job with. By default the global
+        `Registry` is used.
+    """
+
     def __internal(func):
         registry.add_job(func, name)
         return func
@@ -25,6 +46,22 @@ def job(name: Optional[str] = None, registry: JobRegistry = Registry):
 
 
 class ClusterProcess(mp.Process):
+    """
+    A multiprocess Process with logic to pull work and dynamically
+    import required code in order to execute it's work.
+
+    These processes create and manage their own Database connections.
+    And update JobRecords when either erroring out or completing it's
+    workload. A consistently failing JobPosting will result in that
+    posting's blacklisting and cancellation of future operations.
+
+    Notes
+    -----
+    Each process maintains a consistent connection to it's database.
+    This is required in order to maintain PostgreSQL's `SKIP LOCKED`
+    feature in which an active transaction must be kept alive.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._session = Session()
@@ -142,6 +179,42 @@ class ClusterPool(contextlib.AbstractContextManager):
     def await_posting_completion(
         self, posting_id: UUID, poll_time=0.5, max_wait=None
     ):
+        """
+        Wait for the posting to finish execution or until an optional
+        maximum wait time. This method will block until it returns.
+
+        Parameters
+        ----------
+        posting_id: UUID
+            The UUID V4 unique identifier for the JobPosting that
+            this method will wait for.
+        poll_time: float
+            We must poll the database to check for the JobPosting's
+            status. To avoid spamming the database with requests and
+            CPU overhead, this method will sleep for this many seconds
+            before attempting to talk to the database again.
+
+            This is not be considered an accurate time between pollings
+            and very small polling time ~10ms are not to be considered
+            reliable unless utilizing specific hardware and real-time
+            kernel packages are used.
+        max_wait: Optional[float]
+            If the amount of time waiting for the execution of the
+            JobPosting exceeds this amount then raise a TimeoutError.
+
+            Note that the total time waited will exceed the specified
+            maximum wait time due to poll time resolution.
+
+        Raises
+        ------
+        TimeoutError:
+            Raised if `max_wait` is not `None` and total wait time
+            exceeds this value (in seconds).
+
+        ValueError:
+            Raised if the provided `posting_id` resulted in no
+            JobPosting.
+        """
 
         executing = True
 
