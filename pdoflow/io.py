@@ -35,7 +35,7 @@ def configure_engine(
     return engine
 
 
-Session = orm.sessionmaker()
+Session = orm.sessionmaker(expire_on_commit=False)
 
 try:
     Session.configure(bind=configure_engine(DEFAULT_CONFIG_PATH))

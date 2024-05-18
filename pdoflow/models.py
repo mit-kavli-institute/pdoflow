@@ -88,6 +88,9 @@ class JobPosting(CreatedOnMixin, Base):
     def __len__(self):
         return self.total_jobs
 
+    def __iter__(self):
+        yield from self.jobs
+
     @hybrid_property
     def total_jobs(self) -> int:
         return len(self.jobs)
