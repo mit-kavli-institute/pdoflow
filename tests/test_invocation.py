@@ -56,7 +56,7 @@ def test_default_status(db_session, workload):
     )
 
     with db_session as db:
-        q = sa.select(models.JobPosting).where(
+        q = models.JobPosting.select().where(
             models.JobPosting.id == posting_id,
             models.JobPosting.status == status.PostingStatus.executing,
         )

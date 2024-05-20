@@ -41,3 +41,29 @@ def test_posting_percentage_expr(db_session, posting: m.JobPosting):
             assert isnan(db_session.scalar(q))
         else:
             assert pytest.approx(posting.percent_done) == db_session.scalar(q)
+
+
+@given(pdo_st.job_postings())
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_posting_repr(db_session, posting: m.JobPosting):
+    with db_session:
+        db_session.merge(posting)
+        # Just check that certain information is in repr
+        string = repr(posting)
+        assert str(posting.id) in string
+        assert str(posting.status) in string
+        assert posting.entry_point in string
+        assert posting.target_function in string
+
+
+@given(pdo_st.job_postings())
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_total_jobs_done(db_session, posting: m.JobPosting):
+    with db_session:
+        posting = db_session.merge(posting)
+        q = sa.select(m.JobPosting.total_jobs_done).where(
+            m.JobPosting.id == posting.id
+        )
+        sql_total_jobs_done = db_session.scalar(q)
+
+        assert posting.total_jobs_done == sql_total_jobs_done
