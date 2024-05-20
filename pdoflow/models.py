@@ -1,5 +1,4 @@
 import getpass
-import pathlib
 import typing
 import uuid
 from datetime import datetime
@@ -12,27 +11,6 @@ from sqlalchemy.sql.expression import Select
 
 from pdoflow.status import JobStatus, PostingStatus
 from pdoflow.utils import load_function
-
-
-class PathType(sa.types.TypeDecorator):
-    """
-    Adapts PosixPath types to string while resolving their absolute
-    paths to be stored in the database.
-    """
-
-    impl = sa.types.String
-
-    cache_ok = True
-
-    def process_bind_param(
-        self, value: pathlib.PosixPath | None, dialect: sa.Dialect
-    ):
-        if value is None:
-            return None
-        return str(value.resolve())
-
-    def process_result_value(self, value: Any, dialect: sa.Dialect):
-        return pathlib.Path(value)
 
 
 class Base(DeclarativeBase):
