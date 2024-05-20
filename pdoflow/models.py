@@ -174,7 +174,11 @@ class JobRecord(CreatedOnMixin, Base):
         sa.CheckConstraint("tries_remaining >= 0", name="no_negative_tries"),
         sa.CheckConstraint(
             "completed_on IS NULL OR created_on < completed_on",
-            name="no_unphysical_dates",
+            name="no_unphysical_completed",
+        ),
+        sa.CheckConstraint(
+            "(completed_on IS NULL and work_started_on IS NULL) or "
+            "(work_started_on < completed_on)"
         ),
     )
 

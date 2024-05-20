@@ -120,17 +120,13 @@ def _waiting_job(draw, posting: m.JobPosting):
 @st.composite
 def _finished_job(draw, posting: m.JobPosting):
     function = load_function(posting.entry_point)
-    created_on = draw(
-        st.datetimes(max_value=datetime.now() - timedelta(seconds=1))
-    )
+
+    completed_on = draw(st.datetimes(max_value=datetime.now()))
     work_started_on = draw(
-        st.datetimes(
-            min_value=created_on + timedelta(microseconds=1),
-            max_value=datetime.now(),
-        )
+        st.datetimes(max_value=completed_on - timedelta(microseconds=1))
     )
-    completed_on = draw(
-        st.datetimes(min_value=work_started_on, max_value=datetime.now())
+    created_on = draw(
+        st.datetimes(max_value=work_started_on - timedelta(microseconds=1))
     )
 
     return draw(
@@ -155,17 +151,12 @@ def _finished_job(draw, posting: m.JobPosting):
 @st.composite
 def _errored_job(draw, posting: m.JobPosting):
     function = load_function(posting.entry_point)
-    created_on = draw(
-        st.datetimes(max_value=datetime.now() - timedelta(seconds=1))
-    )
+    completed_on = draw(st.datetimes(max_value=datetime.now()))
     work_started_on = draw(
-        st.datetimes(
-            min_value=created_on + timedelta(microseconds=1),
-            max_value=datetime.now(),
-        )
+        st.datetimes(max_value=completed_on - timedelta(microseconds=1))
     )
-    completed_on = draw(
-        st.datetimes(min_value=created_on, max_value=work_started_on)
+    created_on = draw(
+        st.datetimes(max_value=work_started_on - timedelta(microseconds=1))
     )
 
     return draw(
@@ -208,3 +199,6 @@ def posting_with_records(draw, **list_kwargs):
     posting = draw(job_postings())
     draw(st.lists(job_records(posting), **list_kwargs))
     return posting
+
+
+name = "no_unphysical_elapsed"
