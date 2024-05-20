@@ -1,5 +1,7 @@
 from math import isnan
 
+import pytest
+import sqlalchemy as sa
 from hypothesis import HealthCheck, given, settings
 
 from pdoflow import models as m
@@ -24,3 +26,18 @@ def test_posting_percentage(db_session, posting: m.JobPosting):
                 else:
                     n_waiting += 1
             assert (n_exited / len(posting)) * 100 == posting.percent_done
+
+
+@given(pdo_st.posting_with_records())
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_posting_percentage_expr(db_session, posting: m.JobPosting):
+    with db_session:
+        posting = db_session.merge(posting)
+        q = sa.select(m.JobPosting.percent_done).where(
+            m.JobPosting.id == posting.id
+        )
+
+        if isnan(posting.percent_done):
+            assert isnan(db_session.scalar(q))
+        else:
+            assert pytest.approx(posting.percent_done) == db_session.scalar(q)

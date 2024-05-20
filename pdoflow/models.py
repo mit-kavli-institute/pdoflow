@@ -144,7 +144,10 @@ class JobPosting(CreatedOnMixin, Base):
     @percent_done.inplace.expression
     @classmethod
     def _percent_done(cls):
-        return (cls.total_jobs_done / cls.total_jobs) * 100.0
+        case = sa.case(
+            (cls.total_jobs == 0, float("NaN")), else_=cls.total_jobs
+        )
+        return (cls.total_jobs_done / case) * 100.0
 
 
 class JobRecord(CreatedOnMixin, Base):
