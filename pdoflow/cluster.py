@@ -45,6 +45,26 @@ def job(name: Optional[str] = None, registry: JobRegistry = Registry):
     return __internal
 
 
+class _FailureCache:
+    """
+
+    """
+    def __init__(self, default_value: int):
+        self._default_value = default_value
+        self._cache: dict[UUID, int] = {}
+
+    def __getitem__(self, key: UUID):
+        try:
+            return self._cache[key]
+        except KeyError:
+            self._cache[key] = self._default_value
+            return self._cache[key]
+
+    def __setitem__(self, key: UUID, value: int):
+        self._cache[key] = value
+
+
+
 class ClusterProcess(mp.Process):
     """
     A multiprocess Process with logic to pull work and dynamically
@@ -64,15 +84,13 @@ class ClusterProcess(mp.Process):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._session = Session()
+        self._session = None
         self.failure_threshold = 10
-        self._failure_cache: dict[UUID, int] = defaultdict(
-            lambda: self.failure_threshold
-        )
+        self._failure_cache = _FailureCache(self.failure_threshold)
         self._bad_postings: set[UUID] = set()
 
     def _pre_run_init(self):
-        pass
+        self._session = Session()
 
     def process_job_records(self, jobs: list[JobRecord]):
         for job in jobs:
