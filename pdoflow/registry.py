@@ -5,7 +5,7 @@ easily reference functions to post jobs on.
 
 from dataclasses import dataclass, field
 from itertools import zip_longest
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 from pdoflow.io import Session
 from pdoflow.models import JobPosting, JobRecord
@@ -92,7 +92,7 @@ class JobRegistry:
 
     _job_defs: dict[str, _JobDataClass] = field(default_factory=dict)
 
-    def __getitem__(self, key: str | Callable) -> _JobDataClass:
+    def __getitem__(self, key: Union[str, Callable]) -> _JobDataClass:
         """
         Attempt to resolve the function or function alias as
         _JobDataClass.
@@ -105,7 +105,7 @@ class JobRegistry:
         lookup_name = self.resolve_name(key)
         return self._job_defs[lookup_name]
 
-    def __contains__(self, key: str | Callable) -> bool:
+    def __contains__(self, key: Union[str, Callable]) -> bool:
         """
         Returns True if the given function or function alias is
         found in the Registry instance.
@@ -137,7 +137,7 @@ class JobRegistry:
         return func
 
     @staticmethod
-    def resolve_name(key: str | Callable) -> str:
+    def resolve_name(key: Union[str, Callable]) -> str:
         return key if isinstance(key, str) else key.__name__
 
     def clear_registry(self):

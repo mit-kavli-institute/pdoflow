@@ -24,7 +24,7 @@ class Base(DeclarativeBase):
     )
 
     @classmethod
-    def select(cls, *fields: sa.ColumnElement | str) -> sa.Select:
+    def select(cls, *fields: typing.Union[str, sa.ColumnElement]) -> sa.Select:
         """
         Helper function to avoid import statements just for Select objects.
         """
