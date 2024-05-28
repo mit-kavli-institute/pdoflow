@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pdoflow"
-version = "0.1.1"
+version = "0.1.2"
 description = "A package to manage PDO compute nodes cooperatively."
 authors = [{name="William Fong", email="willfong@mit.edu"}]
 readme = "README.md"
@@ -14,7 +14,7 @@ dependencies = [
     "sqlalchemy==2.0.29",
     "click==8.1",
     "configurables @ git+ssh://git@tessgit.mit.edu/wcfong/configurables.git",
-    "psycopg[binary]==3.1.19",
+    "psycopg[binary]>=3",
     "loguru==0.7.2",
     "tabulate==0.9.0"
 ]
