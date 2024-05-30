@@ -24,7 +24,7 @@ dependencies = [
 Home = "https://tessgit.mit.edu/wcfong/pdoflow"
 
 [project.scripts]
-pdoflow = 'pdoflow:pdoflow_main'
+pdoflow = 'pdoflow.cli:pdoflow_main'
 
 [project.optional-dependencies]
 dev = [
