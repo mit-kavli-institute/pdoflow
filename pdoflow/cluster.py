@@ -4,7 +4,6 @@ jobs are managed.
 """
 import contextlib
 import multiprocessing as mp
-from collections import defaultdict
 from time import sleep, time
 from typing import Optional
 from uuid import UUID
@@ -46,9 +45,8 @@ def job(name: Optional[str] = None, registry: JobRegistry = Registry):
 
 
 class _FailureCache:
-    """
+    """ """
 
-    """
     def __init__(self, default_value: int):
         self._default_value = default_value
         self._cache: dict[UUID, int] = {}
@@ -62,7 +60,6 @@ class _FailureCache:
 
     def __setitem__(self, key: UUID, value: int):
         self._cache[key] = value
-
 
 
 class ClusterProcess(mp.Process):
@@ -149,6 +146,12 @@ class ClusterProcess(mp.Process):
         with self._session:
             while True:
                 jobs = self.obtain_jobs(1)
+
+                if len(jobs) == 0:
+                    # Nothing todo, sleep #TODO Make a bit smarter
+                    sleep(5)
+                    continue
+
                 self.process_job_records(jobs)
 
 
