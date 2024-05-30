@@ -28,8 +28,9 @@ def pool(max_workers: int, upkeep_rate: float):
         f"Instantiated {worker_pool} with upkeep rate of {upkeep_time:03f}s"
     )
     with worker_pool:
-        worker_pool.upkeep()
-        sleep(upkeep_time)
+        while worker_pool:
+            worker_pool.upkeep()
+            sleep(upkeep_time)
 
 
 @pdoflow_main.command()
