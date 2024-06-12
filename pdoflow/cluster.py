@@ -153,6 +153,7 @@ class ClusterProcess(mp.Process):
         with self._session:
             while True:
                 jobs = self.obtain_jobs(1)
+                logger.info(f"Obtained {len(jobs)}")
 
                 if len(jobs) == 0:
                     # Nothing todo, sleep #TODO Make a bit smarter
