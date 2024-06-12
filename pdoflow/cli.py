@@ -20,9 +20,12 @@ def pdoflow_main():
 @pdoflow_main.command()
 @click.option("--max-workers", default=os.cpu_count(), type=int)
 @click.option("--upkeep-rate", default=0.5, type=float)
-def pool(max_workers: int, upkeep_rate: float):
+@click.option("--exception-logging", default="warning")
+def pool(max_workers: int, upkeep_rate: float, exception_logging: str):
     upkeep_time = 1 / upkeep_rate
-    worker_pool = ClusterPool(max_workers=max_workers)
+    worker_pool = ClusterPool(
+        max_workers=max_workers, exception_logging=exception_logging
+    )
 
     logger.debug(
         f"Instantiated {worker_pool} with upkeep rate of {upkeep_time:03f}s"
