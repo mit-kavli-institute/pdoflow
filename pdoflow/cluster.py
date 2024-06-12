@@ -147,6 +147,8 @@ class ClusterProcess(mp.Process):
 
     def run(self):
         self._pre_run_init()
+        if self._session is None:
+            raise RuntimeError(f"Worker {self} as no Session!")
         with self._session:
             while True:
                 jobs = self.obtain_jobs(1)
@@ -154,6 +156,7 @@ class ClusterProcess(mp.Process):
                 if len(jobs) == 0:
                     # Nothing todo, sleep #TODO Make a bit smarter
                     sleep(5)
+                    self._session.rollback()  # Cleanup
                     continue
 
                 self.process_job_records(jobs)

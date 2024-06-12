@@ -216,8 +216,8 @@ class JobRecord(CreatedOnMixin, Base):
                 JobRecord.status == JobStatus.waiting,
                 JobRecord.tries_remaining > 0,
             )
-            .with_for_update(skip_locked=True)
             .limit(batchsize)
+            .with_for_update(skip_locked=True)
         )
         return q
 
