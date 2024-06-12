@@ -99,6 +99,7 @@ class ClusterProcess(mp.Process):
                 continue
             try:
                 job.execute()
+                logger.success(f"Executed {job.id}")
             except KeyboardInterrupt:
                 logger.warning("Encountered user interrupt, releasing jobs")
                 self._session.rollback()
@@ -155,6 +156,7 @@ class ClusterProcess(mp.Process):
 
                 if len(jobs) == 0:
                     # Nothing todo, sleep #TODO Make a bit smarter
+                    logger.info(f"No jobs for {self}, waiting")
                     sleep(5)
                     self._session.rollback()  # Cleanup
                     continue

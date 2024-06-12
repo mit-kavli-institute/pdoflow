@@ -216,6 +216,7 @@ class JobRecord(CreatedOnMixin, Base):
                 JobRecord.status == JobStatus.waiting,
                 JobRecord.tries_remaining > 0,
             )
+            .order_by(cls.id.asc())
             .limit(batchsize)
             .with_for_update(skip_locked=True)
         )
