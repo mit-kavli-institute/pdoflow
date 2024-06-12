@@ -86,19 +86,14 @@ class JobPosting(CreatedOnMixin, Base):
 
     @hybrid_property
     def total_jobs_done(self):
-        return len(
-            list(filter(lambda j: j.status != JobStatus.waiting, self.jobs))
-        )
+        return len(list(filter(lambda j: j.done, self.jobs)))
 
     @total_jobs_done.inplace.expression
     @classmethod
     def _total_jobs_done(cls):
         q = (
             cls.select(sa.func.count(JobRecord.id))
-            .where(
-                JobRecord.posting_id == cls.id,
-                JobRecord.status != JobStatus.waiting,
-            )
+            .where(JobRecord.posting_id == cls.id, JobRecord.done)
             .correlate(cls)
             .label("total_jobs_done")
         )
@@ -110,7 +105,7 @@ class JobPosting(CreatedOnMixin, Base):
         n_stopped = 0
 
         for job in self.jobs:
-            if job.status != JobStatus.waiting:
+            if job.done:
                 n_stopped += 1
             n_jobs += 1
 
@@ -165,6 +160,17 @@ class JobRecord(CreatedOnMixin, Base):
 
     def __repr__(self):
         return f"<Job {self.id} f({self.pos_args}): {self.status}>"
+
+    @hybrid_property
+    def done(self):
+        return self.status in (JobStatus.done, JobStatus.errored_out)
+
+    @done.inplace.expression
+    @classmethod
+    def _done_expr(cls):
+        return sa.or_(
+            cls.status == JobStatus.done, cls.status == JobStatus.errored_out
+        )
 
     @hybrid_property
     def pos_args(self) -> tuple:

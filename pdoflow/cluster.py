@@ -14,6 +14,7 @@ from loguru import logger
 from pdoflow.io import Session
 from pdoflow.models import JobPosting, JobRecord
 from pdoflow.registry import JobRegistry, Registry
+from pdoflow.status import JobStatus
 
 
 def job(name: Optional[str] = None, registry: JobRegistry = Registry):
@@ -91,6 +92,11 @@ class ClusterProcess(mp.Process):
         self._session = Session()
 
     def process_job_records(self, jobs: list[JobRecord]):
+
+        for job in jobs:
+            job.status = JobStatus.executing
+        self._session.commit()
+
         for job in jobs:
             if job.posting_id in self._bad_postings:
                 # Short circuit out, too many failures for the given job
@@ -134,6 +140,7 @@ class ClusterProcess(mp.Process):
                         f"{job} encountered {e}, "
                         f"{job.tries_remaining} tries remaining"
                     )
+                    job.status = JobStatus.waiting
 
         self._session.commit()
 

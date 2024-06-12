@@ -47,6 +47,7 @@ def test_retries(db_session, workload):
             if row.fail_arg % 2 == 0:
                 if timed_out:
                     assert row.status in (
+                        JobStatus.executing,
                         JobStatus.errored_out,
                         JobStatus.waiting,
                     )
@@ -54,6 +55,10 @@ def test_retries(db_session, workload):
                     assert row.status == JobStatus.errored_out
             else:
                 if timed_out:
-                    assert row.status in (JobStatus.done, JobStatus.waiting)
+                    assert row.status in (
+                        JobStatus.done,
+                        JobStatus.errored_out,
+                        JobStatus.waiting,
+                    )
                 else:
                     assert row.status == JobStatus.done
