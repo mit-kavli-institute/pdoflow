@@ -224,7 +224,7 @@ class JobRecord(CreatedOnMixin, Base):
             )
             .order_by(cls.id.asc())
             .limit(batchsize)
-            .with_for_update(skip_locked=True)
+            .with_for_update(skip_locked=True, of=cls)
         )
         return q
 
