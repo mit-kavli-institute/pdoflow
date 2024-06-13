@@ -2,7 +2,7 @@ import getpass
 import typing
 import uuid
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any, Iterable, Optional
 
 import sqlalchemy as sa
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -226,6 +226,29 @@ class JobRecord(CreatedOnMixin, Base):
             .limit(batchsize)
             .with_for_update(skip_locked=True)
         )
+        return q
+
+    @classmethod
+    def available_ids(
+        cls, batchsize: int, posting_ids: Optional[Iterable[int]] = None
+    ) -> sa.Select[int]:
+        q = (
+            sa.select(cls.id)
+            .join(cls.posting)
+            .where(
+                JobRecord.status == JobStatus.waiting,
+                JobRecord.tries_remaining > 0,
+            )
+            .limit(batchsize)
+            .with_for_update(skip_locked=True)
+        )
+
+        if posting_ids:
+            q = q.where(JobPosting.id.in_(posting_ids))
+        else:
+            q = q.where(
+                JobPosting.status == PostingStatus.executing,
+            )
         return q
 
     def execute(self) -> typing.Any:

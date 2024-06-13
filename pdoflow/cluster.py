@@ -89,87 +89,78 @@ class ClusterProcess(mp.Process):
         self.exception_logging = exception_logging
 
     def _pre_run_init(self):
-        self._session = Session()
+        pass
 
-    def process_job_records(self, jobs: list[JobRecord]):
+    def process_job_records(self) -> int:
+        with Session() as db:
+            ids = list(db.scalars(JobRecord.available_ids(1)))
+            q = (
+                sa.update(JobRecord)
+                .values(status=JobStatus.executing)
+                .where(JobRecord.id.in_(ids))
+            )
+            db.execute(q)
+            db.commit()
 
-        for job in jobs:
-            job.status = JobStatus.executing
-        self._session.commit()
+        if len(ids) == 0:
+            logger.debug(f"Nothing {self}'s job queue, waiting...")
+            return 0
 
-        for job in jobs:
-            if job.posting_id in self._bad_postings:
-                # Short circuit out, too many failures for the given job
-                # posting
-                job.mark_as_bad()
-                continue
-            try:
-                job.execute()
-                logger.success(f"Executed {job.id}")
-            except KeyboardInterrupt:
-                logger.warning("Encountered user interrupt, releasing jobs")
-                self._session.rollback()
-                raise
-            except Exception as e:
-                log_func = getattr(
-                    logger, self.exception_logging, logger.warning
-                )
-                log_func(f"Worker encountered {e}")
+        with Session() as db:
+            q = sa.select(JobRecord).where(JobRecord.id.in_(ids))
+            jobs = db.scalars(q)
 
-                remaining_failures = self._failure_cache[job.posting_id]
-
-                if remaining_failures <= 0:
-                    logger.warning(
-                        f"Worker deemed {job.posting} as"
-                        " too erroneous to continue it's work."
-                    )
-                    self._bad_postings.add(job.posting_id)
+            for job in jobs:
+                if job.posting_id in self._bad_postings:
+                    # Short circuit out, too many failures for the given job
+                    # posting
                     job.mark_as_bad()
                     continue
-
-                if job.tries_remaining <= 1:
-                    logger.warning(
-                        f"Worker is deeming {job} too erroneous to "
-                        " try it again."
+                try:
+                    job.execute()
+                    logger.success(f"Executed {job.id}")
+                except KeyboardInterrupt:
+                    logger.warning("Encountered interrupt, releasing jobs")
+                    self._session.rollback()
+                    raise
+                except Exception as e:
+                    log_func = getattr(
+                        logger, self.exception_logging, logger.warning
                     )
-                    job.mark_as_bad()
-                    self._failure_cache[job.posting_id] -= 1
-                else:
-                    job.tries_remaining -= 1
-                    logger.warning(
-                        f"{job} encountered {e}, "
-                        f"{job.tries_remaining} tries remaining"
-                    )
-                    job.status = JobStatus.waiting
+                    log_func(f"Worker encountered {e}")
 
-        self._session.commit()
+                    remaining_failures = self._failure_cache[job.posting_id]
 
-    def obtain_jobs(self, max_batchsize: int) -> list[JobRecord]:
-        q = JobRecord.get_available(max_batchsize)
+                    if remaining_failures <= 0:
+                        logger.warning(
+                            f"Worker deemed {job.posting} as"
+                            " too erroneous to continue it's work."
+                        )
+                        self._bad_postings.add(job.posting_id)
+                        job.mark_as_bad()
+                        continue
 
-        # ignore postings which the worker has deemed "bad"
-        if len(self._bad_postings) > 0:
-            q = q.where(~JobRecord.posting_id.in_(self._bad_postings))
-        jobs = self._session.scalars(q)
-        return list(jobs)
+                    if job.tries_remaining <= 1:
+                        logger.warning(
+                            f"Worker is deeming {job} too erroneous to "
+                            " try it again."
+                        )
+                        job.mark_as_bad()
+                        self._failure_cache[job.posting_id] -= 1
+                    else:
+                        job.tries_remaining -= 1
+                        logger.warning(
+                            f"{job} encountered {e}, "
+                            f"{job.tries_remaining} tries remaining"
+                        )
+                        job.status = JobStatus.waiting
+                finally:
+                    db.commit()
 
     def run(self):
         self._pre_run_init()
-        if self._session is None:
-            raise RuntimeError(f"Worker {self} as no Session!")
-        with self._session:
-            while True:
-                jobs = self.obtain_jobs(1)
-                logger.info(f"Obtained {len(jobs)}")
-
-                if len(jobs) == 0:
-                    # Nothing todo, sleep #TODO Make a bit smarter
-                    logger.info(f"No jobs for {self}, waiting")
-                    sleep(5)
-                    self._session.rollback()  # Cleanup
-                    continue
-
-                self.process_job_records(jobs)
+        while True:
+            self.process_job_records()
 
 
 class ClusterPool(contextlib.AbstractContextManager):
