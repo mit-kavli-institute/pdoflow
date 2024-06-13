@@ -208,7 +208,7 @@ class JobRecord(CreatedOnMixin, Base):
     @classmethod
     def _time_elapsed(cls):
         return sa.func.coalesce(
-            cls.completed_on, sa.func.now
+            cls.completed_on, sa.func.now()
         ) - sa.func.coalesce(cls.work_started_on, sa.func.now())
 
     @classmethod
