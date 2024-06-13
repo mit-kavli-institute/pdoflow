@@ -121,7 +121,7 @@ class ClusterProcess(mp.Process):
                     logger.success(f"Executed {job.id}")
                 except KeyboardInterrupt:
                     logger.warning("Encountered interrupt, releasing jobs")
-                    self._session.rollback()
+                    db.rollback()
                     raise
                 except Exception as e:
                     log_func = getattr(
