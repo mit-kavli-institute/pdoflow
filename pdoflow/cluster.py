@@ -107,8 +107,8 @@ class ClusterProcess(mp.Process):
             return 0
 
         with Session() as db:
-            q = sa.select(JobRecord).where(JobRecord.id.in_(ids))
-            jobs = db.scalars(q)
+            job_q = sa.select(JobRecord).where(JobRecord.id.in_(ids))
+            jobs = list(db.scalars(job_q))
 
             for job in jobs:
                 if job.posting_id in self._bad_postings:
@@ -156,11 +156,14 @@ class ClusterProcess(mp.Process):
                         job.status = JobStatus.waiting
                 finally:
                     db.commit()
+        return len(jobs)
 
     def run(self):
         self._pre_run_init()
         while True:
-            self.process_job_records()
+            n_processed = self.process_job_records()
+            if n_processed == 0:
+                sleep(5)
 
 
 class ClusterPool(contextlib.AbstractContextManager):
