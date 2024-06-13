@@ -231,7 +231,7 @@ class JobRecord(CreatedOnMixin, Base):
     @classmethod
     def available_ids(
         cls, batchsize: int, posting_ids: Optional[Iterable[int]] = None
-    ) -> sa.Select[tuple[int]]:
+    ) -> sa.Select[tuple[uuid.UUID]]:
         q = (
             sa.select(cls.id)
             .join(cls.posting)
