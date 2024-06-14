@@ -59,3 +59,14 @@ def posting_status(uuid, table_format):
         results = db.execute(q)
         table = tabulate.tabulate(results, fields, tablefmt=table_format)
     click.echo(table)
+
+
+@pdoflow_main.command()
+@click.option("--table-format", type=str, default="simple")
+def list_postings(table_format: str):
+    fields = ["id", "created_on", "status", "percent_done"]
+    with Session() as db:
+        q = JobPosting.select(*fields)
+        results = db.execute(q)
+        table = tabulate.tabulate(results, fields, tablefmt=table_format)
+    click.echo(table)
