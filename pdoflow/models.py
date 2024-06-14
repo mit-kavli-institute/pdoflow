@@ -240,7 +240,7 @@ class JobRecord(CreatedOnMixin, Base):
                 JobRecord.tries_remaining > 0,
             )
             .limit(batchsize)
-            .with_for_update(skip_locked=True)
+            .with_for_update(skip_locked=True, of=cls)
         )
 
         if posting_ids:
