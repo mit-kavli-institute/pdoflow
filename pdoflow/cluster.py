@@ -94,6 +94,47 @@ class ClusterProcess(mp.Process):
     def _pre_run_init(self):
         pass
 
+    def process_job(self, db, job: JobRecord):
+        if job.posting_id in self._bad_postings:
+            job.mark_as_bad()
+            db.commit()
+        try:
+            job.execute()
+            logger.success(f"Executed {job.id}")
+        except KeyboardInterrupt:
+            logger.warning("Encountered interrupt, releasing jobs")
+            db.rollback()
+            raise
+        except Exception as e:
+            log_func = getattr(logger, self.exception_logging, logger.warning)
+            log_func(f"Worker encountered {e}")
+
+            remaining_failures = self._failure_cache[job.posting_id]
+
+            if remaining_failures <= 0:
+                logger.warning(
+                    f"Worker deemed {job.posting} as"
+                    " too erroneous to continue it's work."
+                )
+                self._bad_postings.add(job.posting_id)
+                job.mark_as_bad()
+            if job.tries_remaining <= 1:
+                logger.warning(
+                    f"Worker is deeming {job} too erroneous to "
+                    " try it again."
+                )
+                job.mark_as_bad()
+                self._failure_cache[job.posting_id] -= 1
+            else:
+                job.tries_remaining -= 1
+                logger.warning(
+                    f"{job} encountered {e}, "
+                    f"{job.tries_remaining} tries remaining"
+                )
+                job.status = JobStatus.waiting
+        finally:
+            db.commit()
+
     def process_job_records(self) -> int:
         with Session() as db:
             ids = list(db.scalars(JobRecord.available_ids(self.batchsize)))
@@ -114,51 +155,8 @@ class ClusterProcess(mp.Process):
             jobs = list(db.scalars(job_q))
 
             for job in jobs:
-                if job.posting_id in self._bad_postings:
-                    # Short circuit out, too many failures for the given job
-                    # posting
-                    job.mark_as_bad()
-                    continue
-                try:
-                    job.execute()
-                    logger.success(f"Executed {job.id}")
-                except KeyboardInterrupt:
-                    logger.warning("Encountered interrupt, releasing jobs")
-                    db.rollback()
-                    raise
-                except Exception as e:
-                    log_func = getattr(
-                        logger, self.exception_logging, logger.warning
-                    )
-                    log_func(f"Worker encountered {e}")
+                self.process_job(db, job)
 
-                    remaining_failures = self._failure_cache[job.posting_id]
-
-                    if remaining_failures <= 0:
-                        logger.warning(
-                            f"Worker deemed {job.posting} as"
-                            " too erroneous to continue it's work."
-                        )
-                        self._bad_postings.add(job.posting_id)
-                        job.mark_as_bad()
-                        continue
-
-                    if job.tries_remaining <= 1:
-                        logger.warning(
-                            f"Worker is deeming {job} too erroneous to "
-                            " try it again."
-                        )
-                        job.mark_as_bad()
-                        self._failure_cache[job.posting_id] -= 1
-                    else:
-                        job.tries_remaining -= 1
-                        logger.warning(
-                            f"{job} encountered {e}, "
-                            f"{job.tries_remaining} tries remaining"
-                        )
-                        job.status = JobStatus.waiting
-                finally:
-                    db.commit()
         return len(jobs)
 
     def run(self):
