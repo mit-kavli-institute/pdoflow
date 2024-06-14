@@ -80,20 +80,23 @@ class ClusterProcess(mp.Process):
     feature in which an active transaction must be kept alive.
     """
 
-    def __init__(self, *args, exception_logging="warning", **kwargs):
+    def __init__(
+        self, *args, exception_logging="warning", batchsize=10, **kwargs
+    ):
         super().__init__(*args, **kwargs)
         self._session = None
         self.failure_threshold = 10
         self._failure_cache = _FailureCache(self.failure_threshold)
         self._bad_postings: set[UUID] = set()
         self.exception_logging = exception_logging
+        self.batchsize = batchsize
 
     def _pre_run_init(self):
         pass
 
     def process_job_records(self) -> int:
         with Session() as db:
-            ids = list(db.scalars(JobRecord.available_ids(1)))
+            ids = list(db.scalars(JobRecord.available_ids(self.batchsize)))
             q = (
                 sa.update(JobRecord)
                 .values(status=JobStatus.executing)
@@ -178,6 +181,7 @@ class ClusterPool(contextlib.AbstractContextManager):
         max_workers: int = 1,
         worker_class: type[ClusterProcess] = ClusterProcess,
         exception_logging="warning",
+        batchsize: int = 10,
     ):
         """
         Create a new pool with an upper limit of how many workers
@@ -187,12 +191,15 @@ class ClusterPool(contextlib.AbstractContextManager):
         self.workers: list[mp.Process] = []
         self.WorkerClass = worker_class
         self.exception_logging = exception_logging
+        self.batchsize = batchsize
 
     def __enter__(self):
         for _ in range(self.max_workers):
             self.workers.append(
                 self.WorkerClass(
-                    daemon=True, exception_logging=self.exception_logging
+                    daemon=True,
+                    exception_logging=self.exception_logging,
+                    batchsize=self.batchsize,
                 )
             )
             self.workers[-1].start()
