@@ -11,6 +11,7 @@ from functools import lru_cache
 
 import deal
 import sqlalchemy as sa
+from loguru import logger
 
 
 def get_module_path(obj: typing.Any) -> str:
@@ -67,3 +68,12 @@ def load_function(path: str):
     module = __import__(module_path, fromlist=[func_name])
     function = getattr(module, func_name)
     return function
+
+
+def make_warning_logger(logging_level: str):
+    func = getattr(logger, logging_level, logger.debug)
+
+    def warning_logger(message, category, filename, lineno, **_):
+        func(f"{category}: {message} {filename}:{lineno}")
+
+    return warning_logger

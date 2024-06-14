@@ -21,17 +21,20 @@ def pdoflow_main():
 @click.option("--max-workers", default=os.cpu_count(), type=int)
 @click.option("--upkeep-rate", default=0.5, type=float)
 @click.option("--exception-logging", default="warning")
+@click.option("--warning-logging", default="debug")
 @click.option("--batchsize", type=int, default=10)
 def pool(
     max_workers: int,
     upkeep_rate: float,
     exception_logging: str,
+    warning_logging: str,
     batchsize: int = 10,
 ):
     upkeep_time = 1 / upkeep_rate
     worker_pool = ClusterPool(
         max_workers=max_workers,
         exception_logging=exception_logging,
+        warning_logging=warning_logging,
         batchsize=batchsize,
     )
 

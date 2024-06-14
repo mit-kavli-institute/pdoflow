@@ -4,6 +4,7 @@ jobs are managed.
 """
 import contextlib
 import multiprocessing as mp
+import warnings
 from time import sleep, time
 from typing import Optional
 from uuid import UUID
@@ -15,6 +16,7 @@ from pdoflow.io import Session
 from pdoflow.models import JobPosting, JobRecord
 from pdoflow.registry import JobRegistry, Registry
 from pdoflow.status import JobStatus
+from pdoflow.utils import make_warning_logger
 
 
 def job(name: Optional[str] = None, registry: JobRegistry = Registry):
@@ -81,7 +83,12 @@ class ClusterProcess(mp.Process):
     """
 
     def __init__(
-        self, *args, exception_logging="warning", batchsize=10, **kwargs
+        self,
+        *args,
+        exception_logging: str = "warning",
+        warning_logging: str = "debug",
+        batchsize=10,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self._session = None
@@ -89,10 +96,11 @@ class ClusterProcess(mp.Process):
         self._failure_cache = _FailureCache(self.failure_threshold)
         self._bad_postings: set[UUID] = set()
         self.exception_logging = exception_logging
+        self.warning_logging = warning_logging
         self.batchsize = batchsize
 
     def _pre_run_init(self):
-        pass
+        warnings.showwarning = make_warning_logger(self.warning_logging)
 
     def process_job(self, db, job: JobRecord):
         if job.posting_id in self._bad_postings:
@@ -179,6 +187,7 @@ class ClusterPool(contextlib.AbstractContextManager):
         max_workers: int = 1,
         worker_class: type[ClusterProcess] = ClusterProcess,
         exception_logging="warning",
+        warning_logging="debug",
         batchsize: int = 10,
     ):
         """
@@ -189,6 +198,7 @@ class ClusterPool(contextlib.AbstractContextManager):
         self.workers: list[mp.Process] = []
         self.WorkerClass = worker_class
         self.exception_logging = exception_logging
+        self.warning_logging = warning_logging
         self.batchsize = batchsize
 
     def __enter__(self):
@@ -197,6 +207,7 @@ class ClusterPool(contextlib.AbstractContextManager):
                 self.WorkerClass(
                     daemon=True,
                     exception_logging=self.exception_logging,
+                    warning_logging=self.warning_logging,
                     batchsize=self.batchsize,
                 )
             )
