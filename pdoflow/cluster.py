@@ -4,6 +4,7 @@ jobs are managed.
 """
 import contextlib
 import multiprocessing as mp
+import os
 import warnings
 from time import sleep, time
 from typing import Optional
@@ -11,6 +12,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from loguru import logger
+from sqlalchemy.exc import OperationalError
 
 from pdoflow.io import Session
 from pdoflow.models import JobPosting, JobRecord
@@ -99,6 +101,9 @@ class ClusterProcess(mp.Process):
         self.warning_logging = warning_logging
         self.batchsize = batchsize
 
+    def __repr__(self):
+        return f"<ClusterProcess pid={os.getpid()} />"
+
     def _pre_run_init(self):
         warnings.showwarning = make_warning_logger(self.warning_logging)
 
@@ -108,11 +113,20 @@ class ClusterProcess(mp.Process):
             db.commit()
         try:
             job.execute()
-            logger.success(f"Executed {job.id}")
+            logger.success(
+                f"Executed {job.id} took "
+                f"{job.time_elapsed.total_seconds():.2f} seconds"
+            )
         except KeyboardInterrupt:
             logger.warning("Encountered interrupt, releasing jobs")
             db.rollback()
             raise
+        except OperationalError:
+            logger.error(
+                f"Worker {self} encountered database error, backing off..."
+            )
+            sleep(1)
+            job.status = JobStatus.waiting
         except Exception as e:
             log_func = getattr(logger, self.exception_logging, logger.warning)
             log_func(f"Worker encountered {e}")
@@ -145,7 +159,13 @@ class ClusterProcess(mp.Process):
 
     def process_job_records(self) -> int:
         with Session() as db:
+            t0 = time()
             ids = list(db.scalars(JobRecord.available_ids(self.batchsize)))
+            time_to_obtain = time() - t0
+            logger.info(
+                f"Worker {self} took {time_to_obtain:.2f} seconds "
+                "to aquire workload"
+            )
             q = (
                 sa.update(JobRecord)
                 .values(status=JobStatus.executing)
