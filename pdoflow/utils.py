@@ -73,7 +73,9 @@ def load_function(path: str):
 def make_warning_logger(logging_level: str):
     func = getattr(logger, logging_level, logger.debug)
 
-    def warning_logger(message, category, filename, lineno, **_):
+    def warning_logger(
+        message, category, filename, lineno, file=None, line=None
+    ):
         func(f"{category}: {message} {filename}:{lineno}")
 
     return warning_logger
