@@ -2,6 +2,9 @@
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [project]
 name = "pdoflow"
 version = "0.1.11"
@@ -40,6 +43,8 @@ dev = [
 
 [tool.mypy]
 plugins = "sqlalchemy.ext.mypy.plugin"
+files = "src"
+warn_unreachable = true
 
 [tool.isort]
 profile = "black"
@@ -49,3 +54,4 @@ line-length=80
 
 [tool.flake8]
 max-line-length = 81
+files = "src"
