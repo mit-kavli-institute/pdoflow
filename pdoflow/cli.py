@@ -4,12 +4,14 @@ from time import sleep
 from uuid import UUID
 
 import click
+import sqlalchemy as sa
 import tabulate
 from loguru import logger
 
 from pdoflow.cluster import ClusterPool
 from pdoflow.io import Session
-from pdoflow.models import JobPosting
+from pdoflow.models import JobPosting, JobRecord
+from pdoflow.status import JobStatus
 
 
 @click.group(name="pdoflow")
@@ -73,3 +75,49 @@ def list_postings(table_format: str):
         results = db.execute(q)
         table = tabulate.tabulate(results, fields, tablefmt=table_format)
     click.echo(table)
+
+
+@pdoflow_main.command()
+@click.argument("uuid", type=str)
+def execute_job(uuid: str):
+    with Session() as db:
+        q = (
+            sa.update(JobRecord)
+            .values(status=JobStatus.executing)
+            .where(JobRecord.id == uuid)
+        )
+        db.execute(q)
+        db.commit()
+
+        job = db.scalar(sa.select(JobRecord).where(JobRecord.id == uuid))
+        if job is None:
+            click.echo(
+                click.style(
+                    f"No Job record {uuid} not found",
+                    fg="red",
+                )
+            )
+            return
+        try:
+            job.execute()
+            click.echo(
+                click.style(
+                    f"Job record {uuid} successfully executed",
+                    fg="green",
+                )
+            )
+        except KeyboardInterrupt:
+            db.rollback()
+            click.echo("Keyboard interrupt, exiting")
+        except Exception as e:
+            click.echo(
+                click.style(
+                    f"Job record {uuid} encountered an error: {e}",
+                    fg="white",
+                    bg="red",
+                    blink=True,
+                )
+            )
+            job.mark_as_bad()
+        finally:
+            db.commit()
