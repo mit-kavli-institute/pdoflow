@@ -5,6 +5,7 @@ jobs are managed.
 import contextlib
 import multiprocessing as mp
 import os
+import random
 import warnings
 from time import sleep, time
 from typing import Optional
@@ -122,10 +123,10 @@ class ClusterProcess(mp.Process):
             db.rollback()
             raise
         except OperationalError:
-            logger.error(
+            logger.exception(
                 f"Worker {self} encountered database error, backing off..."
             )
-            sleep(1)
+            sleep(2 * random.random())
             job.status = JobStatus.waiting
         except Exception as e:
             log_func = getattr(logger, self.exception_logging, logger.warning)
