@@ -1,3 +1,4 @@
+import enum
 import fileinput
 import os
 from time import sleep
@@ -11,7 +12,39 @@ from loguru import logger
 from pdoflow.cluster import ClusterPool
 from pdoflow.io import Session
 from pdoflow.models import JobPosting, JobRecord
-from pdoflow.status import JobStatus
+from pdoflow.status import JobStatus, PostingStatus
+
+
+# define custom click types
+class EnumChoice(click.ParamType):
+    """Generic click type that maps human-readable strings → Enum members."""
+
+    name = "enum"
+
+    def __init__(self, enum_cls: type[enum.Enum]) -> None:
+        self.enum_cls = enum_cls
+        self._lookup: dict[str, enum.Enum] = {
+            e.name.lower(): e for e in enum_cls
+        } | {e.name.replace("_", "-"): e for e in enum_cls}
+
+    def convert(
+        self,
+        value: str,
+        param: click.Parameter | None,
+        ctx: click.Context | None,
+    ) -> enum.Enum:
+        key = value.lower()
+        if key in self._lookup:
+            return self._lookup[key]
+        self.fail(
+            f"'{value}' is not a valid {self.enum_cls.__name__}. "
+            f"Choose from: {', '.join(self._lookup)}",
+            param,
+            ctx,
+        )
+
+    def get_metavar(self, param: click.Parameter) -> str:
+        return "[" + "|".join(self._lookup) + "]"
 
 
 @click.group(name="pdoflow")
@@ -75,6 +108,20 @@ def list_postings(table_format: str):
         results = db.execute(q)
         table = tabulate.tabulate(results, fields, tablefmt=table_format)
     click.echo(table)
+
+
+@pdoflow_main.command()
+@click.argument("uuid", type=str)
+@click.argument("status", type=EnumChoice(PostingStatus))
+def set_posting_status(uuid: str, status: PostingStatus):
+    with Session() as db:
+        q = JobPosting.select().where(JobPosting.id == uuid)
+        obj = db.scalar(q)
+        if obj is None:
+            click.echo(f"Could not find Posting with id: {id}", err=True)
+            raise click.Abort()
+        obj.status = status
+        db.commit()
 
 
 @pdoflow_main.command()
