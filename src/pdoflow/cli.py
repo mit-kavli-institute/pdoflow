@@ -1,6 +1,7 @@
 import enum
 import fileinput
 import os
+import typing
 from time import sleep
 from uuid import UUID
 
@@ -30,8 +31,8 @@ class EnumChoice(click.ParamType):
     def convert(
         self,
         value: str,
-        param: click.Parameter | None,
-        ctx: click.Context | None,
+        param: typing.Optional[click.Parameter],
+        ctx: typing.Optional[click.Context],
     ) -> enum.Enum:
         key = value.lower()
         if key in self._lookup:
