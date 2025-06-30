@@ -140,7 +140,7 @@ def set_posting_status(uuid: str, status: PostingStatus):
         q = JobPosting.select().where(JobPosting.id == uuid)
         obj = db.scalar(q)
         if obj is None:
-            click.echo(f"Could not find Posting with id: {id}", err=True)
+            click.echo(f"Could not find Posting with id: {uuid}", err=True)
             raise click.Abort()
         obj.status = status
         db.commit()

@@ -14,3 +14,28 @@ def failure(fail_arg: int) -> bool:
             "This function cannot possibly work with even numbers."
         )
     return True
+
+
+# Test helper functions for CLI tests
+_execution_tracker = []
+
+
+def track_execution(x):
+    """Track execution calls for testing."""
+    _execution_tracker.append(x)
+    return x
+
+
+def get_execution_tracker():
+    """Get the execution tracker list."""
+    return _execution_tracker
+
+
+def clear_execution_tracker():
+    """Clear the execution tracker."""
+    _execution_tracker.clear()
+
+
+def failing_func(x):
+    """A function that always fails with a specific error."""
+    raise ValueError("Test error")
