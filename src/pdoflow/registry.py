@@ -22,7 +22,12 @@ class _JobDataClass:
 
     target: Callable
 
-    def post_work(self, posargs: list[tuple], kwargs: list[dict]):
+    def post_work(
+        self,
+        posargs: list[tuple],
+        kwargs: list[dict],
+        priority: Union[int, list[int]] = 0,
+    ):
         """
         Post the given work to the remote database.
 
@@ -39,11 +44,17 @@ class _JobDataClass:
             of each dictionary is in direct correlation to the
             positional tuple list.
 
+        priority: Union[int, list[int]]
+            Priority for the jobs. Can be a single integer (applied to all
+            jobs) or a list of integers (one per job). Higher values mean
+            higher priority. Default is 0 for backward compatibility.
+
         Notes
         -----
         You may pass an empty list for keyword lists.
         The work posted will iterate over positional arguments and draw
         NULL for keyword arguments in such an occasion.
+        Priority ranges from -2,147,483,648 to 2,147,483,647 (PostgreSQL INT).
         """
         posting = JobPosting(
             target_function=self.target.__name__,
@@ -55,16 +66,29 @@ class _JobDataClass:
             db.add(posting)
             db.flush()
 
+            # Handle priority as either single value or list
+            if isinstance(priority, int):
+                priorities = [priority] * len(posargs)
+            else:
+                if len(priority) != len(posargs):
+                    raise ValueError(
+                        f"Priority list length ({len(priority)}) must match "
+                        f"posargs length ({len(posargs)})"
+                    )
+                priorities = priority
+
             payload = [
                 JobRecord(
                     posting=posting,
-                    priority=1,
+                    priority=job_priority,
                     positional_arguments=args,
                     keyword_arguments=kwargs,
                     tries_remaining=3,
                     status=JobStatus.waiting,
                 )
-                for args, kwargs in zip_longest(posargs, kwargs)
+                for (args, kwargs), job_priority in zip(
+                    zip_longest(posargs, kwargs), priorities
+                )
             ]
             db.add_all(payload)
             db.commit()

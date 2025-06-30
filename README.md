@@ -37,6 +37,24 @@ Registry[some_unit_of_work].post_work(
         # parameters are being used.
 )
 # Done from the client's point of view.
+
+# You can also specify priorities for jobs
+Registry[some_unit_of_work].post_work(
+    posargs=[
+        (1, 2.0, "urgent.txt"),
+        (2, 3.0, "normal.txt"),
+        (3, 4.0, "low_priority.txt"),
+    ],
+    kwargs=[],
+    priority=[100, 0, -50]  # Higher values = higher priority
+)
+
+# Or use a single priority for all jobs
+Registry[some_unit_of_work].post_work(
+    posargs=[(i, float(i), f"file_{i}.txt") for i in range(10)],
+    kwargs=[],
+    priority=50  # All jobs get priority 50
+)
 ```
 
 ## Running clusters
@@ -48,6 +66,30 @@ pdoflow pool --max-workers 16
 
 This will create a pool of a maximum of 16 concurrent python processes
 which will execute posted workloads.
+
+## CLI Commands
+
+PDOFlow provides several CLI commands for managing and monitoring jobs:
+
+```bash
+# Start a worker pool
+pdoflow pool --max-workers 16 --batchsize 10
+
+# Check posting status (use --show-jobs to see individual job priorities)
+pdoflow posting-status <uuid> --show-jobs
+
+# List all postings
+pdoflow list-postings
+
+# View priority statistics for waiting jobs
+pdoflow priority-stats
+
+# Manually execute a specific job
+pdoflow execute-job <uuid>
+
+# Set posting status
+pdoflow set-posting-status <uuid> executing
+```
 
 Or you may run pool in a Python program:
 ```python
@@ -81,6 +123,13 @@ standing has been flaky recently); this package only requires PostgreSQL
 
 So long as code is importable, this package can run on any computing
 machine.
+
+## Priority Queue Support
+PDOFlow includes built-in priority queue support:
+- Jobs with higher priority values are executed first
+- Jobs with the same priority are executed in FIFO order (preventing starvation)
+- Priority values range from -2,147,483,648 to 2,147,483,647 (PostgreSQL INT)
+- Default priority is 0 for backward compatibility
 
 # Security Implications
 This package runs arbitrary code passed from clients. Some mitigations

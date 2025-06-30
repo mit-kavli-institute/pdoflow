@@ -86,7 +86,8 @@ def pool(
 @pdoflow_main.command()
 @click.argument("uuid", type=str)
 @click.option("--table-format", type=str, default="simple")
-def posting_status(uuid, table_format):
+@click.option("--show-jobs", is_flag=True, help="Show individual job details")
+def posting_status(uuid, table_format, show_jobs):
     try:
         ids = [UUID(uuid)]
     except ValueError:
@@ -98,6 +99,26 @@ def posting_status(uuid, table_format):
         results = db.execute(q)
         table = tabulate.tabulate(results, fields, tablefmt=table_format)
     click.echo(table)
+
+    if show_jobs:
+        # Show job details including priority
+        click.echo("\nJob Details:")
+        job_fields = ["id", "priority", "status", "created_on"]
+        for posting_id in ids:
+            q = (
+                JobRecord.select(*job_fields)
+                .where(JobRecord.posting_id == posting_id)
+                .order_by(
+                    JobRecord.priority.desc(), JobRecord.created_on.asc()
+                )  # noqa: E501
+            )
+            results = list(db.execute(q))
+            if len(results) > 0:
+                click.echo(f"\nPosting {posting_id}:")
+                job_table = tabulate.tabulate(
+                    results, job_fields, tablefmt=table_format
+                )
+                click.echo(job_table)
 
 
 @pdoflow_main.command()
@@ -123,6 +144,37 @@ def set_posting_status(uuid: str, status: PostingStatus):
             raise click.Abort()
         obj.status = status
         db.commit()
+
+
+@pdoflow_main.command()
+@click.option("--table-format", type=str, default="simple")
+def priority_stats(table_format: str):
+    """Show priority statistics for waiting jobs"""
+    with Session() as db:
+        # Get priority distribution
+        q = (
+            sa.select(
+                JobRecord.priority,
+                sa.func.count(JobRecord.id).label("count"),
+                sa.func.min(JobRecord.created_on).label("oldest"),
+            )
+            .where(
+                JobRecord.status == JobStatus.waiting,
+                JobRecord.tries_remaining > 0,
+            )
+            .group_by(JobRecord.priority)
+            .order_by(JobRecord.priority.desc())
+        )
+        results = list(db.execute(q))
+
+        if len(results) == 0:
+            click.echo("No waiting jobs found.")
+            return
+
+        click.echo("Priority Distribution for Waiting Jobs:")
+        fields = ["priority", "count", "oldest"]
+        table = tabulate.tabulate(results, fields, tablefmt=table_format)
+        click.echo(table)
 
 
 @pdoflow_main.command()
