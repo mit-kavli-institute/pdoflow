@@ -1,8 +1,0 @@
-[run]
-branch = true
-parallel = true
-concurrency = multiprocessing
-
-[report]
-show_missing = true
-precision = 2

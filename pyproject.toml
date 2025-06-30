@@ -55,3 +55,59 @@ line-length=80
 [tool.flake8]
 max-line-length = 81
 files = "src"
+
+[tool.coverage.run]
+branch = true
+source = ["pdoflow"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+]
+parallel = true
+context = "{env_name}"
+
+[tool.coverage.paths]
+source = [
+    "src/pdoflow",
+    ".tox/*/lib/python*/site-packages/pdoflow",
+    ".tox\\*\\Lib\\site-packages\\pdoflow",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if TYPE_CHECKING:",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "PDOFlow Coverage Report"
+
+[tool.coverage.json]
+output = "coverage.json"
+pretty_print = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = [
+    "--strict-markers",
+    "--tb=short",
+    "--cov-context=test",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+]
