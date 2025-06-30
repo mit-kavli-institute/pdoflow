@@ -56,13 +56,12 @@ class _JobDataClass:
         NULL for keyword arguments in such an occasion.
         Priority ranges from -2,147,483,648 to 2,147,483,647 (PostgreSQL INT).
         """
-        posting = JobPosting(
-            target_function=self.target.__name__,
-            entry_point=get_module_path(self.target),
-            status=PostingStatus.executing,
-        )
-
         with Session() as db:
+            posting = JobPosting(
+                target_function=self.target.__name__,
+                entry_point=get_module_path(self.target),
+                status=PostingStatus.executing,
+            )
             db.add(posting)
             db.flush()
 

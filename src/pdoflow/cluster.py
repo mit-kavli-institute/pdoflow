@@ -13,6 +13,7 @@ from uuid import UUID
 
 import sqlalchemy as sa
 from loguru import logger
+from sqlalchemy import orm
 from sqlalchemy.exc import OperationalError
 
 from pdoflow.io import Session
@@ -108,10 +109,16 @@ class ClusterProcess(mp.Process):
     def _pre_run_init(self):
         warnings.showwarning = make_warning_logger(self.warning_logging)
 
-    def process_job(self, db, job: JobRecord):
+    def _get_records(self, db: orm.Session) -> list[JobRecord]:
+        q = JobRecord.get_available(self.batchsize)
+        jobs = list(db.scalars(q))
+        return jobs
+
+    def process_job(self, db: orm.Session, job: JobRecord):
         if job.posting_id in self._bad_postings:
             job.mark_as_bad()
             db.commit()
+            return
         try:
             job.execute()
             logger.success(
@@ -161,7 +168,7 @@ class ClusterProcess(mp.Process):
     def process_job_records(self) -> int:
         with Session() as db:
             t0 = time()
-            ids = list(db.scalars(JobRecord.available_ids(self.batchsize)))
+            ids = [j.id for j in self._get_records(db)]
             time_to_obtain = time() - t0
             logger.info(
                 f"Worker {self} took {time_to_obtain:.2f} seconds "
@@ -247,7 +254,7 @@ class ClusterPool(contextlib.AbstractContextManager):
         """
         dead_idx = []
         for i, worker in enumerate(self.workers):
-            if not worker.is_alive:
+            if not worker.is_alive():
                 dead_idx.append(i)
                 worker.close()
 
