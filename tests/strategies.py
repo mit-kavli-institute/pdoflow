@@ -201,4 +201,40 @@ def posting_with_records(draw, **list_kwargs):
     return posting
 
 
+@st.composite
+def job_profile_data(draw):
+    """Generate JobProfile test data."""
+    total_calls = draw(st.integers(min_value=1, max_value=1000))
+    total_time = draw(st.floats(min_value=0.001, max_value=100.0))
+    return {"total_calls": total_calls, "total_time": total_time}
+
+
+@st.composite
+def profiling_workload(draw):
+    """Generate workload for profiling tests."""
+    return draw(
+        st.lists(
+            st.tuples(
+                st.integers(min_value=100, max_value=10000),  # cpu iterations
+                st.integers(min_value=0, max_value=10),  # sleep ms
+                st.integers(min_value=1, max_value=5),  # recursion depth
+            ),
+            min_size=1,
+            max_size=20,
+        )
+    )
+
+
+def cpu_intensive_entrypoint():
+    return st.just("tests.example_package.cpu_intensive_task")
+
+
+def nested_calls_entrypoint():
+    return st.just("tests.example_package.nested_function_calls")
+
+
+def mixed_execution_entrypoint():
+    return st.just("tests.example_package.mixed_execution_time")
+
+
 name = "no_unphysical_elapsed"

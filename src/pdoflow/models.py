@@ -5,21 +5,21 @@ from datetime import datetime
 from typing import Any, Iterable, Optional
 
 import sqlalchemy as sa
+from sqlalchemy import orm
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy.sql.expression import Select
 
 from pdoflow.status import JobStatus, PostingStatus
 from pdoflow.utils import load_function
 
 
-class Base(DeclarativeBase):
+class Base(orm.DeclarativeBase):
     """
     A Base class for PDOFlow which defines common attributes and logic
     for all dervied PDOFlow database Models.
     """
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    id: orm.Mapped[uuid.UUID] = orm.mapped_column(
         primary_key=True, server_default=sa.text("gen_random_uuid()")
     )
 
@@ -39,7 +39,7 @@ class Base(DeclarativeBase):
 
 
 class CreatedOnMixin:
-    created_on: Mapped[datetime] = mapped_column(
+    created_on: orm.Mapped[datetime] = orm.mapped_column(
         server_default=sa.text("now()")
     )
 
@@ -48,12 +48,16 @@ class JobPosting(CreatedOnMixin, Base):
 
     __tablename__ = "job_postings"
 
-    poster: Mapped[Optional[str]] = mapped_column(default=getpass.getuser())
-    status: Mapped[PostingStatus] = mapped_column(default=PostingStatus.paused)
-    target_function: Mapped[str]
-    entry_point: Mapped[str]
+    poster: orm.Mapped[Optional[str]] = orm.mapped_column(
+        default=getpass.getuser()
+    )
+    status: orm.Mapped[PostingStatus] = orm.mapped_column(
+        default=PostingStatus.paused
+    )
+    target_function: orm.Mapped[str]
+    entry_point: orm.Mapped[str]
 
-    jobs: Mapped[list["JobRecord"]] = relationship(
+    jobs: orm.Mapped[list["JobRecord"]] = orm.relationship(
         "JobRecord", back_populates="posting"
     )
 
@@ -127,24 +131,24 @@ class JobRecord(CreatedOnMixin, Base):
 
     __tablename__ = "job_records"
 
-    posting_id: Mapped[uuid.UUID] = mapped_column(
+    posting_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
         sa.ForeignKey(
             JobPosting.id,
         )
     )
-    posting: Mapped[JobPosting] = relationship(
+    posting: orm.Mapped[JobPosting] = orm.relationship(
         JobPosting, back_populates="jobs"
     )
 
-    priority: Mapped[int]
-    positional_arguments: Mapped[tuple] = mapped_column(sa.JSON)
-    keyword_arguments: Mapped[Optional[dict]] = mapped_column(sa.JSON)
-    tries_remaining: Mapped[int]
+    priority: orm.Mapped[int]
+    positional_arguments: orm.Mapped[tuple] = orm.mapped_column(sa.JSON)
+    keyword_arguments: orm.Mapped[Optional[dict]] = orm.mapped_column(sa.JSON)
+    tries_remaining: orm.Mapped[int]
 
-    status: Mapped[JobStatus] = mapped_column(default=JobStatus.waiting)
-    exited_ok: Mapped[Optional[bool]]
-    work_started_on: Mapped[Optional[datetime]]
-    completed_on: Mapped[Optional[datetime]]
+    status: orm.Mapped[JobStatus] = orm.mapped_column(default=JobStatus.waiting)
+    exited_ok: orm.Mapped[Optional[bool]]
+    work_started_on: orm.Mapped[Optional[datetime]]
+    completed_on: orm.Mapped[Optional[datetime]]
 
     __table_args__ = (
         sa.CheckConstraint("tries_remaining >= 0", name="no_negative_tries"),
@@ -269,3 +273,138 @@ class JobRecord(CreatedOnMixin, Base):
         self.status = JobStatus.errored_out
         self.tries_remaining = 0
         self.completed_on = datetime.now()
+
+
+class JobProfile(CreatedOnMixin, Base):
+    __tablename__ = "job_profiles"
+
+    job_record_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        sa.ForeignKey(JobRecord.id)
+    )
+    job_record: orm.Mapped[JobRecord] = orm.relationship(
+        JobRecord, backref="profile"
+    )
+
+    total_calls: orm.Mapped[int] = orm.mapped_column(sa.Integer)
+    total_time: orm.Mapped[float] = orm.mapped_column(sa.Float)
+
+    function_stats = orm.relationship("FunctionStat", back_populates="profile")
+
+
+# Define classes to track cProfile objects in such a manner that statistics
+# can be computed at any time in the future.
+class Function(CreatedOnMixin, Base):
+    __tablename__ = "function_defs"
+
+    filename: orm.Mapped[str]
+    line_number: orm.Mapped[int]
+    function_name: orm.Mapped[str]
+
+
+class FunctionStat(CreatedOnMixin, Base):
+    __tablename__ = "function_stats"
+
+    profile_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        sa.ForeignKey(JobProfile.id)
+    )
+    function_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        sa.ForeignKey(Function.id)
+    )
+
+    n_calls: orm.Mapped[int]
+    primitive_calls: orm.Mapped[int]
+    total_time: orm.Mapped[float]
+    cumulative_time: orm.Mapped[float]
+
+    profile: orm.Mapped[JobProfile] = orm.relationship(
+        JobProfile, back_populates="function_stats"
+    )
+    callers: orm.Mapped[list["FunctionStat"]] = orm.relationship(
+        "FunctionStat",
+        secondary="function_call_map",
+        primaryjoin=lambda: FunctionStat.id == FunctionCallMap.callee_id,
+        secondaryjoin=lambda: FunctionStat.id == FunctionCallMap.caller_id,
+        back_populates="callees",
+    )
+    callees: orm.Mapped[list["FunctionStat"]] = orm.relationship(
+        "FunctionStat",
+        secondary="function_call_map",
+        primaryjoin=lambda: FunctionStat.id == FunctionCallMap.caller_id,
+        secondaryjoin=lambda: FunctionStat.id == FunctionCallMap.callee_id,
+        back_populates="callers",
+    )
+
+
+class FunctionCallMap(Base):
+    __tablename__ = "function_call_map"
+
+    caller_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        sa.ForeignKey(Function.id)
+    )
+    callee_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        sa.ForeignKey(Function.id)
+    )
+
+    n_calls: orm.Mapped[int]
+
+
+# Define some convenience functions to push cProfile to the database.
+def reflect_cProfile(db: orm.Session, job_profile: JobProfile, stats):
+    stat_cache: dict[tuple[str, int, str], FunctionStat] = {}
+    func_q = sa.select(Function)
+
+    for label, stat in stats.items():
+        filename, line_number, function_name = label
+        q = func_q.where(
+            Function.filename == filename,
+            Function.line_number == line_number,
+            Function.function_name == function_name,
+        )
+        obj: Optional[Function] = db.scalar(q)
+
+        if obj is None:
+            obj = Function(
+                filename=filename,
+                line_number=line_number,
+                function_name=function_name,
+            )
+            db.add(obj)
+            db.flush()
+
+        # Obj is now a Function instance with a provided primary key
+        stat_inst = FunctionStat(
+            profile_id=job_profile.id,
+            function_id=obj.id,
+            n_calls=stat[0],
+            primitive_calls=stat[1],
+            total_time=stat[2],
+            cumulative_time=stat[3],
+        )
+        stat_cache[label] = stat_inst
+
+    # Two phase push, one to flush statistics objects in bulk, returning pks
+    # the second phase being to establish the call relationships
+    for stat_inst in stat_cache.values():
+        db.add(stat_inst)
+    db.flush()
+
+    relationship_payload: list[FunctionCallMap] = []
+    for label, stat in stats.items():
+        # Build relationship graph
+        call_tree = stat[-1]
+        callee = stat_cache[label]
+        for caller_label, t2_stat in call_tree.items():
+            caller = stat_cache[caller_label]
+            n_calls = t2_stat[0]
+
+            map_ = FunctionCallMap(
+                caller_id=caller.function_id,
+                callee_id=callee.function_id,
+                n_calls=n_calls,
+            )
+            relationship_payload.append(map_)
+
+    db.bulk_save_objects(relationship_payload)
+
+    # Leave it to the developer to commit
+    return stat_cache, relationship_payload

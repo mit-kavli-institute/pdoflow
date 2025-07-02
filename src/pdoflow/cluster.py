@@ -3,6 +3,7 @@ This module defines the runtime logic for pdoflow worker pools and how
 jobs are managed.
 """
 import contextlib
+import cProfile
 import multiprocessing as mp
 import os
 import random
@@ -17,7 +18,7 @@ from sqlalchemy import orm
 from sqlalchemy.exc import OperationalError
 
 from pdoflow.io import Session
-from pdoflow.models import JobPosting, JobRecord
+from pdoflow.models import JobPosting, JobProfile, JobRecord, reflect_cProfile
 from pdoflow.registry import JobRegistry, Registry
 from pdoflow.status import JobStatus
 from pdoflow.utils import make_warning_logger
@@ -114,13 +115,39 @@ class ClusterProcess(mp.Process):
         jobs = list(db.scalars(q))
         return jobs
 
+    def nominal_execution(self, job: JobRecord):
+        job.execute()
+
+    def traced_execution(self, job: JobRecord):
+        pr = cProfile.Profile()
+        pr.enable()
+        job.execute()
+        pr.disable()
+        pr.create_stats()
+        return pr.stats
+
     def process_job(self, db: orm.Session, job: JobRecord):
         if job.posting_id in self._bad_postings:
             job.mark_as_bad()
             db.commit()
             return
         try:
-            job.execute()
+            if random.random() < 0.1:  # 10% chance for traced execution
+                stats = self.traced_execution(job)
+                # Create JobProfile and reflect the cProfile stats
+                job_profile = JobProfile(
+                    job_record_id=job.id,
+                    total_calls=len(stats),
+                    total_time=sum(
+                        stat[3] for stat in stats.values()
+                    ),  # cumulative time
+                )
+                db.add(job_profile)
+                db.flush()  # Get the profile ID
+                reflect_cProfile(db, job_profile, stats)
+            else:  # 90% chance for nominal execution
+                self.nominal_execution(job)
+
             logger.success(
                 f"Executed {job.id} took "
                 f"{job.time_elapsed.total_seconds():.2f} seconds"
