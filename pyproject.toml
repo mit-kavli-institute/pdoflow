@@ -53,7 +53,7 @@ profile = "black"
 line-length=80
 
 [tool.flake8]
-max-line-length = 81
+max-line-length = 80
 files = "src"
 
 [tool.coverage.run]
