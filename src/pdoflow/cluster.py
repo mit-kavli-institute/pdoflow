@@ -7,9 +7,11 @@ import cProfile
 import multiprocessing as mp
 import os
 import random
+import signal
 import warnings
+from datetime import datetime
 from time import sleep, time
-from typing import Optional
+from typing import Generator, Optional, Tuple
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -20,8 +22,12 @@ from sqlalchemy.exc import OperationalError
 from pdoflow.io import Session
 from pdoflow.models import JobPosting, JobProfile, JobRecord, reflect_cProfile
 from pdoflow.registry import JobRegistry, Registry
-from pdoflow.status import JobStatus
+from pdoflow.status import JobStatus, PostingStatus
 from pdoflow.utils import make_warning_logger
+
+
+def timeout(signum, frame):
+    raise TimeoutError("Timeout occured")
 
 
 def job(name: Optional[str] = None, registry: JobRegistry = Registry):
@@ -50,6 +56,101 @@ def job(name: Optional[str] = None, registry: JobRegistry = Registry):
         return func
 
     return __internal
+
+
+def poll_posting(
+    posting_id: UUID,
+) -> Generator[Tuple[datetime, int, int, PostingStatus], None, None]:
+    """
+    Monitor a job posting's execution progress yielding periodic status updates.
+
+    This generator continually queries the database for the current status of a
+    job posting identified by its UUID. It yields tuples containing timestamp
+    and progress information until the posting completes execution or is no
+    longer found in the database.
+
+    If at any time the number of completed jobs is equal or somehow greater
+    than the total jobs listed in a posting, the posting is set to the finish
+    state and this function will return.
+
+    Parameters
+    ----------
+    posting_id : UUID
+        The unique identifier of the job posting to monitor.
+
+    Yields
+    ------
+    tuple of (datetime, int, int, PostingStatus)
+        A tuple containing:
+        - query_time: The timestamp when the status was queried
+        - total_jobs: Total number of jobs in the posting
+        - jobs_completed: Number of jobs completed so far
+        - status: Current status of the posting
+
+    Notes
+    -----
+    The generator exits when:
+    1. The posting status changes from 'executing' to any other status
+    2. The posting is not found in the database (returns early)
+    3. The number of finished jobs is equal to the total amount of work
+
+    The function performs continuous database queries, so it should be used
+    with appropriate delays between iterations to avoid excessive load.
+
+    Examples
+    --------
+    >>> posting_id = UUID('12345678-1234-5678-1234-567812345678')
+    >>> for timestamp, total, done, status in poll_posting(posting_id):
+    ...     print(f"Progress: {done}/{total} jobs completed")
+    ...     time.sleep(1)  # Add delay between iterations
+    """
+    # Define the query once to avoid repetition
+    status_query = sa.select(
+        sa.func.now().label("query_time"),
+        JobPosting.total_jobs,
+        JobPosting.total_jobs_done,
+        JobPosting.status,
+    ).where(JobPosting.id == posting_id)
+
+    with Session() as session:
+        # Helper function to fetch and unpack posting data
+        def fetch_posting_status():
+            result = session.execute(status_query).first()
+            if result is None:
+                return None
+            return (
+                result.query_time,
+                result.total_jobs,
+                result.total_jobs_done,
+                result.status,
+            )
+
+        # Initial fetch
+        posting_data = fetch_posting_status()
+        if posting_data is None:
+            return
+
+        query_time, total_jobs, jobs_completed, status = posting_data
+
+        # Continue polling while posting is executing
+        while status == PostingStatus.executing:
+            yield query_time, total_jobs, jobs_completed, status
+
+            # Fetch updated status
+            posting_data = fetch_posting_status()
+            if posting_data is None:
+                return
+
+            if jobs_completed >= total_jobs:
+                session.execute(
+                    sa.update(JobPosting)
+                    .where(JobPosting.id == posting_id)
+                    .values(status=PostingStatus.finished)
+                )
+                session.commit()
+                return
+
+            query_time, total_jobs, jobs_completed, status = posting_data
 
 
 class _FailureCache:
@@ -174,6 +275,7 @@ class ClusterProcess(mp.Process):
                     " too erroneous to continue it's work."
                 )
                 self._bad_postings.add(job.posting_id)
+                job.posting.status = PostingStatus.errored_out
                 job.mark_as_bad()
             if job.tries_remaining <= 1:
                 logger.warning(
@@ -290,7 +392,10 @@ class ClusterPool(contextlib.AbstractContextManager):
             self.workers[idx].start()
 
     def await_posting_completion(
-        self, posting_id: UUID, poll_time=0.5, max_wait=None
+        self,
+        posting_id: UUID,
+        poll_time: float = 0.5,
+        max_wait: Optional[int] = None,
     ):
         """
         Wait for the posting to finish execution or until an optional
@@ -311,7 +416,7 @@ class ClusterPool(contextlib.AbstractContextManager):
             and very small polling time ~10ms are not to be considered
             reliable unless utilizing specific hardware and real-time
             kernel packages are used.
-        max_wait: Optional[float]
+        max_wait: Optional[int]
             If the amount of time waiting for the execution of the
             JobPosting exceeds this amount then raise a TimeoutError.
 
@@ -328,26 +433,12 @@ class ClusterPool(contextlib.AbstractContextManager):
             Raised if the provided `posting_id` resulted in no
             JobPosting.
         """
+        if max_wait:
+            signal.signal(signal.SIGALRM, timeout)
+            signal.alarm(max_wait)
+        for _, *_ in poll_posting(posting_id):
+            sleep(poll_time)
 
-        executing = True
-
-        with Session() as db:
-            q = sa.select(JobPosting.percent_done).where(
-                JobPosting.id == posting_id
-            )
-
-            t0 = time()
-
-            while executing:
-                amount_finished = db.scalar(q)
-
-                if amount_finished is None:
-                    raise ValueError(f"No post found for {posting_id}")
-
-                executing = amount_finished < 100.0
-
-                if executing:
-                    sleep(poll_time)
-
-                if max_wait and (time() - t0) > max_wait:
-                    raise TimeoutError
+        # Exited, disable alarm if it was set
+        if max_wait:
+            signal.alarm(0)

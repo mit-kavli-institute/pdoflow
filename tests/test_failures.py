@@ -2,13 +2,13 @@
 This testing module is for testing pdoflow's reaction to function
 workload failures.
 """
-
+import sqlalchemy as sa
 from hypothesis import HealthCheck, given, note, settings
 from loguru import logger
 
 from pdoflow import cluster, registry
-from pdoflow.models import JobRecord
-from pdoflow.status import JobStatus
+from pdoflow.models import JobPosting, JobRecord
+from pdoflow.status import JobStatus, PostingStatus
 from tests import strategies
 from tests.example_package import failure
 
@@ -21,16 +21,16 @@ def test_retries(db_session, workload):
     logger.remove()
     registry.Registry.clear_registry()
 
+    with db_session as db:
+        sa.delete(JobPosting)
+        db.commit()
+
     cluster.job()(failure)
 
     posting_id, _ = registry.Registry[failure].post_work(workload, [])
 
     with cluster.ClusterPool(max_workers=1) as pool:
-        try:
-            pool.await_posting_completion(posting_id, max_wait=1.0)
-            timed_out = False
-        except TimeoutError:
-            timed_out = True
+        pool.await_posting_completion(posting_id)
 
     q = JobRecord.select(
         "id",
@@ -41,24 +41,18 @@ def test_retries(db_session, workload):
     ).where(JobRecord.posting_id == posting_id)
 
     with db_session as db:
+        posting = db.scalar(
+            sa.select(JobPosting).where(JobPosting.id == posting_id)
+        )
+        if len(workload) > 0:
+            assert posting.status in (
+                PostingStatus.errored_out,
+                PostingStatus.finished,
+            )
         results = db.execute(q)
         for row in results:
             note(str(row.id))
             if row.fail_arg % 2 == 0:
-                if timed_out:
-                    assert row.status in (
-                        JobStatus.executing,
-                        JobStatus.errored_out,
-                        JobStatus.waiting,
-                    )
-                else:
-                    assert row.status == JobStatus.errored_out
+                assert row.status in (JobStatus.errored_out, JobStatus.waiting)
             else:
-                if timed_out:
-                    assert row.status in (
-                        JobStatus.done,
-                        JobStatus.errored_out,
-                        JobStatus.waiting,
-                    )
-                else:
-                    assert row.status == JobStatus.done
+                assert row.status == JobStatus.done

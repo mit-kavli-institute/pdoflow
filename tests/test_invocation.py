@@ -154,7 +154,7 @@ def test_work_instantiation(db_session, workload):
         max_workers=1, worker_class=CoverageWorker
     ) as pool:
         try:
-            pool.await_posting_completion(posting_id, max_wait=1.0)
+            pool.await_posting_completion(posting_id, max_wait=1)
             timed_out = False
         except TimeoutError:
             timed_out = True
