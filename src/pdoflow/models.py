@@ -84,6 +84,7 @@ class JobPosting(CreatedOnMixin, Base):
             cls.select(sa.func.count(JobRecord.id))
             .where(JobRecord.posting_id == cls.id)
             .correlate(cls)
+            .scalar_subquery()
             .label("total_jobs")
         )
         return q
@@ -97,34 +98,36 @@ class JobPosting(CreatedOnMixin, Base):
     def _total_jobs_done(cls):
         q = (
             cls.select(sa.func.count(JobRecord.id))
-            .where(JobRecord.posting_id == cls.id, JobRecord.done)
+            .where(JobRecord.done, JobRecord.posting_id == cls.id)
             .correlate(cls)
+            .scalar_subquery()
             .label("total_jobs_done")
         )
         return q
 
     @hybrid_property
     def percent_done(self) -> float:
-        n_jobs = 0
+        n_jobs = self.total_jobs
         n_stopped = 0
+
+        if n_jobs == 0:
+            return float("nan")
 
         for job in self.jobs:
             if job.done:
                 n_stopped += 1
-            n_jobs += 1
-
-        if n_jobs == 0:
-            return float("nan")
 
         return (n_stopped / n_jobs) * 100.0
 
     @percent_done.inplace.expression
     @classmethod
     def _percent_done(cls):
-        case = sa.case(
-            (cls.total_jobs == 0, float("NaN")), else_=cls.total_jobs
+        total = sa.case(
+            (cls.total_jobs == 0, float("nan")), else_=cls.total_jobs
         )
-        return (cls.total_jobs_done / case) * 100.0
+        return (
+            sa.cast(cls.total_jobs_done, sa.Float) / sa.cast(total, sa.Float)
+        ) * 100.0
 
 
 class JobRecord(CreatedOnMixin, Base):
@@ -279,10 +282,10 @@ class JobProfile(CreatedOnMixin, Base):
     __tablename__ = "job_profiles"
 
     job_record_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
-        sa.ForeignKey(JobRecord.id)
+        sa.ForeignKey(JobRecord.id, ondelete="CASCADE")
     )
     job_record: orm.Mapped[JobRecord] = orm.relationship(
-        JobRecord, backref="profile"
+        JobRecord, backref="profile", cascade="all, delete"
     )
 
     total_calls: orm.Mapped[int] = orm.mapped_column(sa.Integer)
@@ -305,10 +308,10 @@ class FunctionStat(CreatedOnMixin, Base):
     __tablename__ = "function_stats"
 
     profile_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
-        sa.ForeignKey(JobProfile.id)
+        sa.ForeignKey(JobProfile.id, ondelete="CASCADE")
     )
     function_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
-        sa.ForeignKey(Function.id)
+        sa.ForeignKey(Function.id, ondelete="CASCADE")
     )
 
     n_calls: orm.Mapped[int]

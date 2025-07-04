@@ -155,6 +155,9 @@ def test_work_instantiation(db_session, workload):
     ) as pool:
         try:
             pool.await_posting_completion(posting_id, max_wait=1)
+            cluster.await_for_status_threshold(
+                posting_id, status.JobStatus.executing
+            )
             timed_out = False
         except TimeoutError:
             timed_out = True

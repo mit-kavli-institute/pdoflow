@@ -11,7 +11,7 @@ import signal
 import warnings
 from datetime import datetime
 from time import sleep, time
-from typing import Generator, Optional, Tuple
+from typing import Callable, Generator, Optional, Tuple
 from uuid import UUID
 
 import sqlalchemy as sa
@@ -151,6 +151,102 @@ def poll_posting(
                 return
 
             query_time, total_jobs, jobs_completed, status = posting_data
+
+
+def poll_job_status_count(posting_id: UUID, status: JobStatus):
+    count_query = sa.select(sa.func.count(JobRecord.id)).where(
+        JobRecord.posting_id == posting_id, JobRecord.status == status
+    )
+
+    def fetch_status() -> int:
+        with Session() as session:
+            count = session.scalar(count_query)
+            if not count:
+                return 0
+            return count
+
+    n_records = fetch_status()
+    while True:
+        yield n_records
+        n_records = fetch_status()
+
+
+def await_posting_completion(
+    posting_id: UUID,
+    poll_time: float = 0.5,
+    max_wait: Optional[int] = None,
+):
+    """
+    Wait for the posting to finish execution or until an optional
+    maximum wait time. This function will block until it returns.
+
+    Parameters
+    ----------
+    posting_id: UUID
+        The UUID V4 unique identifier for the JobPosting that
+        this function will wait for.
+    poll_time: float
+        We must poll the database to check for the JobPosting's
+        status. To avoid spamming the database with requests and
+        CPU overhead, this function will sleep for this many seconds
+        before attempting to talk to the database again.
+
+        This is not be considered an accurate time between pollings
+        and very small polling time ~10ms are not to be considered
+        reliable unless utilizing specific hardware and real-time
+        kernel packages are used.
+    max_wait: Optional[int]
+        If the amount of time waiting for the execution of the
+        JobPosting exceeds this amount then raise a TimeoutError.
+
+        Note that the total time waited will exceed the specified
+        maximum wait time due to poll time resolution.
+
+    Raises
+    ------
+    TimeoutError:
+        Raised if `max_wait` is not `None` and total wait time
+        exceeds this value (in seconds).
+
+    ValueError:
+        Raised if the provided `posting_id` resulted in no
+        JobPosting.
+
+    Examples
+    --------
+    >>> posting_id = UUID('12345678-1234-5678-1234-567812345678')
+    >>> await_posting_completion(posting_id, poll_time=1.0, max_wait=60)
+    """
+    if max_wait:
+        signal.signal(signal.SIGALRM, timeout)
+        signal.alarm(max_wait)
+    for _, *_ in poll_posting(posting_id):
+        sleep(poll_time)
+
+    # Exited, disable alarm if it was set
+    if max_wait:
+        signal.alarm(0)
+
+
+def await_for_status_threshold(
+    posting_id: UUID,
+    status: JobStatus,
+    poll_time: float = 0.5,
+    max_wait: Optional[int] = None,
+    threshold_func: Callable[[int], bool] = lambda c: c <= 0,
+):
+    if max_wait:
+        signal.signal(signal.SIGALRM, timeout)
+        signal.alarm(max_wait)
+
+    for count in poll_job_status_count(posting_id, status):
+        if threshold_func(count):
+            break
+        sleep(poll_time)
+
+    # Exited, disable alarm if it was set
+    if max_wait:
+        signal.alarm(0)
 
 
 class _FailureCache:
@@ -401,44 +497,24 @@ class ClusterPool(contextlib.AbstractContextManager):
         Wait for the posting to finish execution or until an optional
         maximum wait time. This method will block until it returns.
 
+        This method delegates to the module-level `await_posting_completion`
+        function. See that function for full documentation.
+
         Parameters
         ----------
         posting_id: UUID
             The UUID V4 unique identifier for the JobPosting that
             this method will wait for.
         poll_time: float
-            We must poll the database to check for the JobPosting's
-            status. To avoid spamming the database with requests and
-            CPU overhead, this method will sleep for this many seconds
-            before attempting to talk to the database again.
-
-            This is not be considered an accurate time between pollings
-            and very small polling time ~10ms are not to be considered
-            reliable unless utilizing specific hardware and real-time
-            kernel packages are used.
+            Time in seconds between database polls.
         max_wait: Optional[int]
-            If the amount of time waiting for the execution of the
-            JobPosting exceeds this amount then raise a TimeoutError.
-
-            Note that the total time waited will exceed the specified
-            maximum wait time due to poll time resolution.
+            Maximum time in seconds to wait before raising TimeoutError.
 
         Raises
         ------
         TimeoutError:
-            Raised if `max_wait` is not `None` and total wait time
-            exceeds this value (in seconds).
-
+            If max_wait is exceeded.
         ValueError:
-            Raised if the provided `posting_id` resulted in no
-            JobPosting.
+            If the posting_id is not found.
         """
-        if max_wait:
-            signal.signal(signal.SIGALRM, timeout)
-            signal.alarm(max_wait)
-        for _, *_ in poll_posting(posting_id):
-            sleep(poll_time)
-
-        # Exited, disable alarm if it was set
-        if max_wait:
-            signal.alarm(0)
+        await_posting_completion(posting_id, poll_time, max_wait)
