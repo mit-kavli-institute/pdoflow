@@ -62,7 +62,8 @@ def poll_posting(
     posting_id: UUID,
 ) -> Generator[Tuple[datetime, int, int, PostingStatus], None, None]:
     """
-    Monitor a job posting's execution progress yielding periodic status updates.
+    Monitor a job posting's execution progress yielding periodic
+    status updates.
 
     This generator continually queries the database for the current status of a
     job posting identified by its UUID. It yields tuples containing timestamp
@@ -154,6 +155,53 @@ def poll_posting(
 
 
 def poll_job_status_count(posting_id: UUID, status: JobStatus):
+    """
+    Generate a continuous stream of job counts for a specific status.
+
+    This generator continuously queries the database to count jobs with a
+    specific status for a given posting. It yields the count indefinitely,
+    allowing consumers to monitor changes in job status distribution over time.
+
+    Parameters
+    ----------
+    posting_id : UUID
+        The unique identifier of the job posting to monitor.
+    status : JobStatus
+        The job status to count (e.g., JobStatus.waiting, JobStatus.done).
+
+    Yields
+    ------
+    int
+        The current count of jobs with the specified status. Returns 0 if
+        no jobs match or if the count is None.
+
+    Notes
+    -----
+    This is an infinite generator that will continue yielding values until
+    the consumer stops iteration. Each yield performs a database query, so
+    consumers should implement appropriate delays between iterations to
+    avoid excessive database load.
+
+    The generator does not check if the posting exists - it will simply
+    yield 0 if no jobs are found.
+
+    Examples
+    --------
+    >>> # Monitor waiting jobs
+    >>> posting_id = UUID('12345678-1234-5678-1234-567812345678')
+    >>> for count in poll_job_status_count(posting_id, JobStatus.waiting):
+    ...     print(f"Waiting jobs: {count}")
+    ...     if count == 0:
+    ...         break
+    ...     time.sleep(1)
+
+    >>> # Use with itertools for limited iterations
+    >>> import itertools
+    >>> for count in itertools.islice(
+    ...     poll_job_status_count(posting_id, JobStatus.executing), 5
+    ... ):
+    ...     print(f"Executing: {count}")
+    """
     count_query = sa.select(sa.func.count(JobRecord.id)).where(
         JobRecord.posting_id == posting_id, JobRecord.status == status
     )
@@ -235,6 +283,79 @@ def await_for_status_threshold(
     max_wait: Optional[int] = None,
     threshold_func: Callable[[int], bool] = lambda c: c <= 0,
 ):
+    """
+    Wait until the count of jobs with a specific status meets a threshold.
+
+    This function blocks execution until the number of jobs with the specified
+    status satisfies the threshold condition defined by threshold_func. It
+    continuously polls the database at regular intervals to check the current
+    count.
+
+    Parameters
+    ----------
+    posting_id : UUID
+        The unique identifier of the job posting to monitor.
+    status : JobStatus
+        The job status to monitor (e.g., JobStatus.executing,
+        JobStatus.errored_out).
+    poll_time : float, optional
+        Time in seconds to sleep between database polls.
+        Default is 0.5 seconds.
+        Lower values provide more responsive monitoring but
+        increase database load.
+    max_wait : Optional[int], optional
+        Maximum time in seconds to wait before raising TimeoutError. If None
+        (default), the function will wait indefinitely until
+        the threshold is met.
+    threshold_func : Callable[[int], bool], optional
+        A function that takes the current count as input and returns True when
+        the threshold condition is met. Default is `lambda c: c <= 0`, which
+        waits until no jobs have the specified status.
+
+    Raises
+    ------
+    TimeoutError
+        Raised if max_wait is specified and the threshold is not met within
+        the specified time limit.
+
+    Notes
+    -----
+    The function uses signal.SIGALRM for timeout implementation, which may not
+    work on all platforms (particularly Windows). The timeout is approximate
+    and may exceed max_wait by up to poll_time seconds.
+
+    Common threshold functions:
+    - Wait for zero: `lambda c: c <= 0` (default)
+    - Wait for all done: `lambda c: c == total_jobs`
+    - Wait for threshold: `lambda c: c >= min_required`
+    - Wait for percentage: `lambda c: c / total >= 0.95`
+
+    Examples
+    --------
+    >>> # Wait until no jobs are executing
+    >>> posting_id = UUID('12345678-1234-5678-1234-567812345678')
+    >>> await_for_status_threshold(
+    ...     posting_id,
+    ...     JobStatus.executing,
+    ...     poll_time=1.0
+    ... )
+
+    >>> # Wait for at least 10 jobs to complete with timeout
+    >>> await_for_status_threshold(
+    ...     posting_id,
+    ...     JobStatus.done,
+    ...     threshold_func=lambda count: count >= 10,
+    ...     max_wait=60
+    ... )
+
+    >>> # Wait until error count drops below 5
+    >>> await_for_status_threshold(
+    ...     posting_id,
+    ...     JobStatus.errored_out,
+    ...     threshold_func=lambda count: count < 5,
+    ...     poll_time=2.0
+    ... )
+    """
     if max_wait:
         signal.signal(signal.SIGALRM, timeout)
         signal.alarm(max_wait)
