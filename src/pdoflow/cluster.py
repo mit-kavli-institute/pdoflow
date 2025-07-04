@@ -219,6 +219,85 @@ def poll_job_status_count(posting_id: UUID, status: JobStatus):
         n_records = fetch_status()
 
 
+def poll_posting_percent(posting_id: UUID) -> Generator[float, None, None]:
+    """
+    Generate a continuous stream of completion percentages for a job posting.
+
+    This generator continuously queries the database to retrieve the completion
+    percentage of a job posting. It yields float values representing the
+    percentage of jobs completed (0.0 to 100.0), making it ideal for feeding
+    into progress bar implementations for visual display.
+
+    Parameters
+    ----------
+    posting_id : UUID
+        The unique identifier of the job posting to monitor.
+
+    Yields
+    ------
+    float
+        The current completion percentage (0.0 to 100.0). Returns NaN
+        (float('nan')) if the posting has no jobs (total_jobs == 0).
+        Returns 0.0 if the posting is not found.
+
+    Notes
+    -----
+    This is an infinite generator that will continue yielding values until
+    the consumer stops iteration. Each yield performs a database query, so
+    consumers should implement appropriate delays between iterations to
+    avoid excessive database load.
+
+    The percentage is calculated as: (total_jobs_done / total_jobs) * 100.0
+
+    Special cases:
+    - If posting doesn't exist: yields 0.0
+    - If total_jobs is 0: yields NaN
+    - If all jobs complete: continues yielding 100.0
+
+    Examples
+    --------
+    >>> # Basic progress monitoring
+    >>> posting_id = UUID('12345678-1234-5678-1234-567812345678')
+    >>> for percent in poll_posting_percent(posting_id):
+    ...     print(f"Progress: {percent:.1f}%")
+    ...     if percent >= 100.0:
+    ...         break
+    ...     time.sleep(0.5)
+
+    >>> # Integration with tqdm progress bar
+    >>> from tqdm import tqdm
+    >>> pbar = tqdm(total=100, desc="Processing")
+    >>> last_percent = 0.0
+    >>> for percent in poll_posting_percent(posting_id):
+    ...     pbar.update(percent - last_percent)
+    ...     last_percent = percent
+    ...     if percent >= 100.0:
+    ...         break
+    ...     time.sleep(0.5)
+    >>> pbar.close()
+
+    >>> # Use with itertools for limited iterations
+    >>> import itertools
+    >>> for percent in itertools.islice(poll_posting_percent(posting_id), 10):
+    ...     print(f"Completion: {percent:.2f}%")
+    """
+    percent_query = sa.select(JobPosting.percent_done).where(
+        JobPosting.id == posting_id
+    )
+
+    def fetch_percent() -> float:
+        with Session() as session:
+            percent = session.scalar(percent_query)
+            if percent is None:
+                return 0.0
+            return percent
+
+    percent = fetch_percent()
+    while True:
+        yield percent
+        percent = fetch_percent()
+
+
 def await_posting_completion(
     posting_id: UUID,
     poll_time: float = 0.5,
