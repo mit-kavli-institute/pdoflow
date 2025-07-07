@@ -16,7 +16,7 @@ dependencies = [
     "deal==4.24.4",
     "sqlalchemy==2.0.29",
     "click==8.1",
-    "configurables @ git+ssh://git@tessgit.mit.edu/wcfong/configurables.git",
+    "configurables @ git+ssh://git@github.com:mit-kavli-institute/configurables.git",
     "psycopg[binary]>=3",
     "loguru==0.7.2",
     "tabulate==0.9.0"
