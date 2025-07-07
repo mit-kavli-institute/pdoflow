@@ -148,7 +148,9 @@ class JobRecord(CreatedOnMixin, Base):
     keyword_arguments: orm.Mapped[Optional[dict]] = orm.mapped_column(sa.JSON)
     tries_remaining: orm.Mapped[int]
 
-    status: orm.Mapped[JobStatus] = orm.mapped_column(default=JobStatus.waiting)
+    status: orm.Mapped[JobStatus] = orm.mapped_column(
+        default=JobStatus.waiting, index=True
+    )
     exited_ok: orm.Mapped[Optional[bool]]
     work_started_on: orm.Mapped[Optional[datetime]]
     completed_on: orm.Mapped[Optional[datetime]]
