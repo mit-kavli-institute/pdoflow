@@ -35,15 +35,6 @@ Comprehensive testing including:
 - Security vulnerability scanning
 - Automatic issue creation on failures
 
-### 4. Dependency Check (`dependency-check.yml`)
-**Trigger**: On dependency file changes, weekly schedule, or manual
-
-Monitors project dependencies:
-- Reviews dependency changes in PRs
-- Audits for security vulnerabilities
-- Checks for outdated packages
-- Validates license compatibility
-
 ## Environment Variables
 
 ### Required for Tests
@@ -93,7 +84,6 @@ Recommended branch protection rules:
 Several workflows support manual triggering:
 - **test.yml**: Standard test run
 - **scheduled-tests.yml**: With custom Hypothesis profile selection
-- **dependency-check.yml**: On-demand dependency audit
 
 ## Maintenance
 
@@ -104,8 +94,8 @@ Several workflows support manual triggering:
 
 ### Updating Dependencies
 1. Modify `pyproject.toml`
-2. Dependency check workflow will automatically run
-3. Review security and license reports
+2. Run tests to ensure compatibility
+3. Update version constraints as needed
 
 ### Coverage Threshold
 - Current minimum: 80%
