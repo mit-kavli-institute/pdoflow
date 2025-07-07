@@ -1,6 +1,7 @@
 """
 Tests for polling functions in the cluster module.
 """
+
 import itertools
 from math import isnan
 

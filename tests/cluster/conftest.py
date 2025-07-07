@@ -1,4 +1,5 @@
 """Shared fixtures and utilities for cluster tests."""
+
 import uuid
 from datetime import datetime
 from unittest.mock import MagicMock, Mock

@@ -1,4 +1,5 @@
 """Tests for the ClusterPool class."""
+
 import multiprocessing as mp
 import time
 from unittest.mock import patch
