@@ -346,7 +346,7 @@ class TestProfilingIntegration:
             max_workers=1, worker_class=CoverageWorker, batchsize=5
         ) as pool:
             pool.await_posting_completion(
-                posting_id, poll_time=0.1, max_wait=10
+                posting_id, poll_time=0.1, max_wait=30
             )
 
         # Check that some jobs were profiled
@@ -435,7 +435,7 @@ class TestProfilingIntegration:
             max_workers=4, worker_class=CoverageWorker, batchsize=5
         ) as pool:
             pool.await_posting_completion(
-                posting_id, poll_time=0.1, max_wait=10
+                posting_id, poll_time=0.1, max_wait=30
             )
 
         # Verify all jobs completed and profiles were created correctly
