@@ -2,7 +2,7 @@ from math import isnan
 
 import pytest
 import sqlalchemy as sa
-from hypothesis import HealthCheck, given, settings
+from hypothesis import HealthCheck, given, note, settings
 
 from pdoflow import models as m
 
@@ -37,6 +37,20 @@ def test_posting_percentage_expr(db_session, posting: m.JobPosting):
             m.JobPosting.id == posting.id
         )
 
+        note(
+            str(
+                (
+                    posting.total_jobs,
+                    db_session.scalar(
+                        sa.select(m.JobPosting.total_jobs).where(
+                            m.JobPosting.id == posting.id
+                        )
+                    ),
+                )
+            )
+        )
+        note(posting.total_jobs_done)
+
         if isnan(posting.percent_done):
             assert isnan(db_session.scalar(q))
         else:
@@ -60,10 +74,32 @@ def test_posting_repr(db_session, posting: m.JobPosting):
 @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 def test_total_jobs_done(db_session, posting: m.JobPosting):
     with db_session:
+
         posting = db_session.merge(posting)
         q = sa.select(m.JobPosting.total_jobs_done).where(
             m.JobPosting.id == posting.id
         )
         sql_total_jobs_done = db_session.scalar(q)
 
+        assert posting.total_jobs == db_session.scalar(
+            sa.select(m.JobPosting.total_jobs).where(
+                m.JobPosting.id == posting.id
+            )
+        )
+        assert posting.total_jobs_done == db_session.scalar(
+            sa.select(m.JobPosting.total_jobs_done).where(
+                m.JobPosting.id == posting.id
+            )
+        )
         assert posting.total_jobs_done == sql_total_jobs_done
+
+
+@given(pdo_st.job_postings())
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
+def test_total_jobs(db_session, posting: m.JobPosting):
+    with db_session:
+        posting = db_session.merge(posting)
+        q = sa.select(m.JobPosting.total_jobs).where(
+            m.JobPosting.id == posting.id
+        )
+        assert posting.total_jobs == db_session.scalar(q)
