@@ -79,7 +79,8 @@ def test_poll_posting_percent_nonexistent(db_session, nonexistent_id):
 def test_poll_posting_percent_consistency(
     db_session, posting: models.JobPosting
 ):
-    """Test that poll_posting_percent yields consistent values with database."""
+    """Test that poll_posting_percent yields consistent values with
+    database."""
     with db_session:
         posting = db_session.merge(posting)
         posting_id = posting.id

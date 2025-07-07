@@ -591,21 +591,38 @@ class ClusterProcess(mp.Process):
             db.commit()
 
     def process_job_records(self) -> int:
-        with Session() as db:
-            t0 = time()
-            ids = [j.id for j in self._get_records(db)]
-            time_to_obtain = time() - t0
-            logger.info(
-                f"Worker {self} took {time_to_obtain:.2f} seconds "
-                "to aquire workload"
-            )
-            q = (
-                sa.update(JobRecord)
-                .values(status=JobStatus.executing)
-                .where(JobRecord.id.in_(ids))
-            )
-            db.execute(q)
-            db.commit()
+        # Retry logic for database connections
+        max_retries = 3
+        retry_delay = 1.0
+
+        for attempt in range(max_retries):
+            try:
+                with Session() as db:
+                    t0 = time()
+                    ids = [j.id for j in self._get_records(db)]
+                    time_to_obtain = time() - t0
+                    logger.info(
+                        f"Worker {self} took {time_to_obtain:.2f} seconds "
+                        "to aquire workload"
+                    )
+                    q = (
+                        sa.update(JobRecord)
+                        .values(status=JobStatus.executing)
+                        .where(JobRecord.id.in_(ids))
+                    )
+                    db.execute(q)
+                    db.commit()
+                break
+            except OperationalError as e:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Database connection failed "
+                        f"(attempt {attempt + 1}/{max_retries}): {e}"
+                    )
+                    sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    raise
 
         if len(ids) == 0:
             logger.debug(f"Nothing {self}'s job queue, waiting...")

@@ -21,15 +21,30 @@ def db_session(postgresql):
     """
     Create a fixture which spawns a database connection and drops tables upon
     a test function's exit.
+
+    In CI environments (when POSTGRES_HOST is set), uses the provided
+    PostgreSQL service instead of spawning a new instance.
     """
-    url = URL.create(
-        "postgresql+psycopg",
-        database=postgresql.info.dbname,
-        username=postgresql.info.user,
-        password=postgresql.info.password,
-        host=postgresql.info.host,
-        port=postgresql.info.port,
-    )
+    # Check if we're in CI environment with PostgreSQL service
+    if os.getenv("POSTGRES_HOST"):
+        url = URL.create(
+            "postgresql+psycopg",
+            database=os.getenv("POSTGRES_DB", "postgres"),
+            username=os.getenv("POSTGRES_USER", "postgres"),
+            password=os.getenv("POSTGRES_PASSWORD", "testing"),
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=int(os.getenv("POSTGRES_PORT", "5432")),
+        )
+    else:
+        # Use pytest-postgresql fixture for local testing
+        url = URL.create(
+            "postgresql+psycopg",
+            database=postgresql.info.dbname,
+            username=postgresql.info.user,
+            password=postgresql.info.password,
+            host=postgresql.info.host,
+            port=postgresql.info.port,
+        )
 
     engine = create_engine(url, poolclass=pool.NullPool)
     register_process_guards(engine)
