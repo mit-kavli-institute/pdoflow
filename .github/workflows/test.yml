@@ -249,7 +249,7 @@ jobs:
 
     - name: Install package and verify version
       run: |
-        pip install -e .
+        pip install -e . --extra-index-url https://mit-kavli-institute.github.io/MIT-Kavli-PyPi/
         INSTALLED_VERSION=$(python -c "import pdoflow; print(pdoflow.__version__)")
         PYPROJECT_VERSION=$(grep -E "^version = " pyproject.toml | cut -d'"' -f2)
 
