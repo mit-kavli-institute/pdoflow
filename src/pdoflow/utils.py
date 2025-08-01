@@ -4,6 +4,7 @@ of life utility logic.
 
 Ideally these functions should be made as pure as possible.
 """
+
 import inspect
 import os
 import typing
