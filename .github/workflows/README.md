@@ -14,6 +14,7 @@ The main testing workflow that:
 - Checks code formatting with Black
 - Generates and combines coverage reports
 - Builds documentation
+- **Validates version format and consistency**
 - Requires all checks to pass
 
 ### 2. Coverage Report (`coverage.yml`)
@@ -34,6 +35,26 @@ Comprehensive testing including:
 - Performance regression tests
 - Security vulnerability scanning
 - Automatic issue creation on failures
+
+### 4. Release (`release.yml`)
+**Trigger**: On push of version tags (e.g., `v1.2.3`)
+
+Automated release workflow that:
+- Validates semantic version format
+- Ensures tag matches pyproject.toml version
+- Builds source distribution and wheel
+- Tests package installation across Python versions
+- Creates GitHub release with changelog
+- Ready for PyPI publishing (currently disabled)
+
+### 5. Version Bump (`version-bump.yml`)
+**Trigger**: Manual workflow dispatch
+
+Automated version management that:
+- Supports major, minor, patch, and prerelease bumps
+- Creates PR with version changes
+- Auto-generates commit message
+- Provides instructions for tagging after merge
 
 ## Environment Variables
 
@@ -84,6 +105,39 @@ Recommended branch protection rules:
 Several workflows support manual triggering:
 - **test.yml**: Standard test run
 - **scheduled-tests.yml**: With custom Hypothesis profile selection
+
+## Version Management
+
+### Creating a Release
+1. **Update version**: Use the Version Bump workflow
+   - Go to Actions → Version Bump → Run workflow
+   - Select bump type (major/minor/patch/prerelease)
+   - Review and merge the created PR
+2. **Create tag**: After PR merge
+   ```bash
+   git pull origin main
+   git tag v1.2.3
+   git push origin v1.2.3
+   ```
+3. **Automatic release**: The release workflow will:
+   - Validate versions
+   - Build packages
+   - Create GitHub release
+   - (Optional) Publish to PyPI
+
+### Version Format
+- Follows [Semantic Versioning](https://semver.org/)
+- Format: `MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]`
+- Examples:
+  - `1.2.3` - Standard release
+  - `2.0.0-beta.1` - Beta prerelease
+  - `1.0.0-rc.2` - Release candidate
+
+### PyPI Publishing
+Currently disabled. To enable:
+1. Create PyPI API token at https://pypi.org/manage/account/token/
+2. Add as repository secret: `PYPI_API_TOKEN`
+3. Uncomment the publishing step in `release.yml`
 
 ## Maintenance
 

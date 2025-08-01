@@ -208,9 +208,61 @@ jobs:
         path: docs/build/html/
         retention-days: 7
 
+  validate-version:
+    name: Validate Version Format
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Validate version in pyproject.toml
+      run: |
+        VERSION=$(grep -E "^version = " pyproject.toml | cut -d'"' -f2)
+        echo "Found version: $VERSION"
+
+        # Validate semantic versioning format
+        if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?(\+[a-zA-Z0-9.-]+)?$ ]]; then
+          echo "Error: Version '$VERSION' does not follow semantic versioning"
+          echo "Expected format: MAJOR.MINOR.PATCH[-PRERELEASE][+BUILD]"
+          exit 1
+        fi
+
+        echo "Version format is valid: $VERSION"
+
+    - name: Check version consistency with tags
+      if: startsWith(github.ref, 'refs/tags/v')
+      run: |
+        TAG_VERSION=${GITHUB_REF#refs/tags/v}
+        PYPROJECT_VERSION=$(grep -E "^version = " pyproject.toml | cut -d'"' -f2)
+
+        if [[ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]]; then
+          echo "Error: Tag version ($TAG_VERSION) does not match pyproject.toml version ($PYPROJECT_VERSION)"
+          exit 1
+        fi
+
+        echo "Tag and pyproject.toml versions match: $TAG_VERSION"
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install package and verify version
+      run: |
+        pip install -e .
+        INSTALLED_VERSION=$(python -c "import pdoflow; print(pdoflow.__version__)")
+        PYPROJECT_VERSION=$(grep -E "^version = " pyproject.toml | cut -d'"' -f2)
+
+        if [[ "$INSTALLED_VERSION" != "$PYPROJECT_VERSION" ]]; then
+          echo "Error: Installed version ($INSTALLED_VERSION) does not match pyproject.toml ($PYPROJECT_VERSION)"
+          exit 1
+        fi
+
+        echo "Version verification passed: $INSTALLED_VERSION"
+
   all-tests-pass:
     name: All Tests Pass
-    needs: [test, lint, coverage, docs]
+    needs: [test, lint, coverage, docs, validate-version]
     runs-on: ubuntu-latest
     steps:
       - name: Check all tests passed
