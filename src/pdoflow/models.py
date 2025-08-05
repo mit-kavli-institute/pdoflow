@@ -60,6 +60,11 @@ class JobPosting(CreatedOnMixin, Base):
     jobs: orm.Mapped[list["JobRecord"]] = orm.relationship(
         "JobRecord", back_populates="posting"
     )
+    variables: orm.Mapped[list["JobPostingVariable"]] = orm.relationship(
+        "JobPostingVariable",
+        back_populates="posting",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self):
         return (
@@ -135,9 +140,7 @@ class JobRecord(CreatedOnMixin, Base):
     __tablename__ = "job_records"
 
     posting_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
-        sa.ForeignKey(
-            JobPosting.id,
-        )
+        sa.ForeignKey(JobPosting.id, ondelete="CASCADE")
     )
     posting: orm.Mapped[JobPosting] = orm.relationship(
         JobPosting, back_populates="jobs"
@@ -280,6 +283,34 @@ class JobRecord(CreatedOnMixin, Base):
         self.completed_on = datetime.now()
 
 
+class JobPostingVariable(CreatedOnMixin, Base):
+    """
+    Shared variable storage for JobPosting instances.
+    Provides key-value storage with row-level locking for concurrent access.
+    """
+
+    __tablename__ = "job_posting_variables"
+
+    posting_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        sa.ForeignKey(JobPosting.id, ondelete="CASCADE")
+    )
+    posting: orm.Mapped[JobPosting] = orm.relationship(
+        JobPosting, back_populates="variables", cascade="all, delete"
+    )
+    key: orm.Mapped[str]
+    value: orm.Mapped[dict] = orm.mapped_column(sa.JSON)
+    updated_on: orm.Mapped[datetime] = orm.mapped_column(
+        server_default=sa.text("now()"), onupdate=sa.text("now()")
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint("posting_id", "key", name="unique_posting_key"),
+    )
+
+    def __repr__(self):
+        return f"<JobPostingVariable {self.posting_id}:{self.key}>"
+
+
 class JobProfile(CreatedOnMixin, Base):
     __tablename__ = "job_profiles"
 
@@ -344,10 +375,10 @@ class FunctionCallMap(Base):
     __tablename__ = "function_call_map"
 
     caller_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
-        sa.ForeignKey(Function.id)
+        sa.ForeignKey(Function.id, ondelete="CASCADE")
     )
     callee_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
-        sa.ForeignKey(Function.id)
+        sa.ForeignKey(Function.id, ondelete="CASCADE")
     )
 
     n_calls: orm.Mapped[int]

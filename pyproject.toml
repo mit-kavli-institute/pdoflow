@@ -31,13 +31,13 @@ pdoflow = 'pdoflow.cli:pdoflow_main'
 
 [project.optional-dependencies]
 dev = [
+    "coverage",
     "pytest==8.2.0",
-    "pytest-postgresql==6.0.0",
+    "pytest-timeout",
+    "pytest-xdist",
     "mypy==1.10",
     "sqlalchemy-stubs==0.4",
     "black==24.4.2",
-    "tox==4.0",
-    "tox-docker==4.1.0",
     "hypothesis==6.100.5"
 ]
 
@@ -104,10 +104,9 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = [
     "--strict-markers",
-    "--tb=short",
-    "--cov-context=test",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
 ]
+timeout = 60

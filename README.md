@@ -131,6 +131,37 @@ PDOFlow includes built-in priority queue support:
 - Priority values range from -2,147,483,648 to 2,147,483,647 (PostgreSQL INT)
 - Default priority is 0 for backward compatibility
 
+## Shared Variables (Experimental)
+PDOFlow provides shared variables for coordination between workers processing the same JobPosting:
+- Key-value storage associated with each JobPosting
+- Atomic operations using PostgreSQL row-level locking
+- JSON-serializable values for flexibility
+- Automatic cleanup when JobPosting is deleted
+
+The shared variables API is available for direct use with database sessions:
+```python
+from pdoflow.io import Session
+from pdoflow.shared_vars import get_shared_variable, set_shared_variable, update_shared_variable
+
+# In your application code
+with Session() as session:
+    # Set a variable
+    set_shared_variable(session, posting_id, "config", {"timeout": 30})
+
+    # Atomically increment a counter
+    count = update_shared_variable(
+        session, posting_id, "counter",
+        lambda x: (x or 0) + 1, default=0
+    )
+
+    # Read a variable with optional locking
+    value = get_shared_variable(session, posting_id, "config", lock=True)
+
+    session.commit()
+```
+
+Note: Integration with the @job decorator for automatic session/posting_id injection is planned for a future release.
+
 # Security Implications
 This package runs arbitrary code passed from clients. Some mitigations
 have been made. For example, all posted parameters must be JSON

@@ -2,7 +2,7 @@
 This testing module is for testing pdoflow's reaction to function
 workload failures.
 """
-
+import pytest
 import sqlalchemy as sa
 from hypothesis import HealthCheck, given, note, settings
 from loguru import logger
@@ -14,10 +14,9 @@ from tests import strategies
 from tests.example_package import failure
 
 
+@pytest.mark.timeout(0)
 @given(strategies.failure_workload())
-@settings(
-    deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
-)
+@settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
 def test_retries(db_session, workload):
     logger.remove()
     registry.Registry.clear_registry()
