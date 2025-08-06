@@ -56,9 +56,9 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
-        pip install tox tox-gh-actions
+        pip install nox
 
-    - name: Run tests with tox
+    - name: Run tests with coverage
       env:
         POSTGRES_HOST: localhost
         POSTGRES_PORT: 5432
@@ -66,7 +66,7 @@ jobs:
         POSTGRES_PASSWORD: testing
         POSTGRES_DB: postgres
       run: |
-        tox -e py$(echo ${{ matrix.python-version }} | tr -d .)
+        nox -s coverage -p ${{ matrix.python-version }}
 
     - name: Upload coverage data
       uses: actions/upload-artifact@v4
@@ -99,13 +99,16 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install tox
+        pip install nox black flake8 mypy sqlalchemy-stubs
 
     - name: Run flake8
-      run: tox -e flake8
+      run: |
+        pip install -e . --extra-index-url https://mit-kavli-institute.github.io/MIT-Kavli-PyPi/
+        flake8 src
 
     - name: Run mypy
-      run: tox -e mypy
+      run: |
+        mypy src
 
     - name: Check black formatting
       run: |
@@ -196,10 +199,13 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install tox
+        pip install nox
 
     - name: Build docs
-      run: tox -e docs
+      run: |
+        pip install -e . --extra-index-url https://mit-kavli-institute.github.io/MIT-Kavli-PyPi/
+        pip install sphinx sphinx-rtd-theme
+        cd docs && make html
 
     - name: Upload documentation
       uses: actions/upload-artifact@v4

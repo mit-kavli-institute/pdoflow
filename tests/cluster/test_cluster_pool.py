@@ -265,14 +265,11 @@ class TestAwaitPostingCompletion:
             [(1, 2.0)], []
         )
 
-        with db_session as db:
-            posting = db.scalar(
-                models.JobPosting.select().where(
-                    models.JobPosting.id == posting_id
-                )
-            )
-            posting.status = status.PostingStatus.executing
-            db.commit()
+        posting = db_session.scalar(
+            models.JobPosting.select().where(models.JobPosting.id == posting_id)
+        )
+        posting.status = status.PostingStatus.executing
+        db_session.commit()
 
         pool = ClusterPool()
 
