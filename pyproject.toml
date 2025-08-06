@@ -63,9 +63,12 @@ omit = [
     "*/tests/*",
     "*/__pycache__/*",
     "*/site-packages/*",
+    "*/sitecustomize.py",
 ]
 parallel = true
+concurrency = ["multiprocessing", "thread"]
 context = "{env_name}"
+sigterm = true
 
 [tool.coverage.paths]
 source = [
@@ -109,4 +112,4 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
 ]
-timeout = 60
+timeout = 30
