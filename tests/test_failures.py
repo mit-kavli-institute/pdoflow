@@ -2,6 +2,7 @@
 This testing module is for testing pdoflow's reaction to function
 workload failures.
 """
+
 import pytest
 import sqlalchemy as sa
 from hypothesis import HealthCheck, given, note, settings

@@ -3,6 +3,7 @@
 This module ensures coverage is properly configured for multiprocessing
 when tests spawn subprocesses directly (not through pytest-xdist).
 """
+
 import os
 
 import coverage
