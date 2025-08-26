@@ -4,6 +4,7 @@ Tests for JobPosting shared variables functionality.
 
 import sqlalchemy as sa
 from hypothesis import HealthCheck, given, settings
+from sqlalchemy.orm.attributes import InstrumentedAttribute
 
 from pdoflow.models import JobPostingVariable
 from pdoflow.shared_vars import (
@@ -120,13 +121,18 @@ def test_update_with_function(db_session, job_posting):
     db_session.commit()
 
     # Define updater function
-    def increment_counter(value):
-        value["count"] += 1
-        return value
+    def increment_counter(column: InstrumentedAttribute[dict], value: dict):
+        stmt = column["count"].astext.cast(sa.Integer) + value
+        return stmt
 
     # Update using function
     new_value = update_shared_variable(
-        db_session, job_posting.id, "counter", increment_counter
+        db_session,
+        job_posting.id,
+        "counter",
+        1,
+        increment_counter,
+        jsonb_path="count",
     )
     db_session.commit()
 
@@ -142,13 +148,14 @@ def test_update_with_function(db_session, job_posting):
 def test_update_nonexistent_with_default(db_session, job_posting):
     """Test updating a non-existent variable with default."""
 
-    def set_initial(value):
+    def set_initial(column, value):
         return {"initialized": True, "value": 100}
 
     new_value = update_shared_variable(
         db_session,
         job_posting.id,
         "new_var",
+        100,
         set_initial,
         default={"initialized": False},
     )

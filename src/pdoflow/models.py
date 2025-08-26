@@ -6,6 +6,7 @@ from typing import Any, Iterable, Optional
 
 import sqlalchemy as sa
 from sqlalchemy import orm
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import Select
 
@@ -147,8 +148,8 @@ class JobRecord(CreatedOnMixin, Base):
     )
 
     priority: orm.Mapped[int]
-    positional_arguments: orm.Mapped[tuple] = orm.mapped_column(sa.JSON)
-    keyword_arguments: orm.Mapped[Optional[dict]] = orm.mapped_column(sa.JSON)
+    positional_arguments: orm.Mapped[tuple] = orm.mapped_column(JSONB)
+    keyword_arguments: orm.Mapped[Optional[dict]] = orm.mapped_column(JSONB)
     tries_remaining: orm.Mapped[int]
 
     status: orm.Mapped[JobStatus] = orm.mapped_column(
@@ -298,7 +299,7 @@ class JobPostingVariable(CreatedOnMixin, Base):
         JobPosting, back_populates="variables", cascade="all, delete"
     )
     key: orm.Mapped[str]
-    value: orm.Mapped[dict] = orm.mapped_column(sa.JSON)
+    value: orm.Mapped[dict] = orm.mapped_column(JSONB)
     updated_on: orm.Mapped[datetime] = orm.mapped_column(
         server_default=sa.text("now()"), onupdate=sa.text("now()")
     )
