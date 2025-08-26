@@ -50,7 +50,7 @@ def checkout(dbapi_connection, connection_record, connection_proxy):
         )
 
 
-def register_process_guards(engine: sa.Engine):
+def register_process_guards(engine: "sa.Engine"):
     """Add SQLAlchemy process guards to the given engine"""
 
     sa.event.listens_for(engine, "connect")(connect)

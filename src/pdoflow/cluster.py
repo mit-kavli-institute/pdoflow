@@ -145,7 +145,7 @@ def poll_posting(
 
             if jobs_completed >= total_jobs:
                 session.execute(
-                    sa.update(JobPosting)
+                    sa.update(JobPosting)  # type: ignore[arg-type]
                     .where(JobPosting.id == posting_id)
                     .values(status=PostingStatus.finished)
                 )
@@ -203,7 +203,9 @@ def poll_job_status_count(posting_id: UUID, status: JobStatus):
     ... ):
     ...     print(f"Executing: {count}")
     """
-    count_query = sa.select(sa.func.count(JobRecord.id)).where(
+    count_query = sa.select(
+        sa.func.count(JobRecord.id)
+    ).where(  # type: ignore[call-arg]
         JobRecord.posting_id == posting_id, JobRecord.status == status
     )
 
@@ -212,7 +214,7 @@ def poll_job_status_count(posting_id: UUID, status: JobStatus):
             count = session.scalar(count_query)
             if not count:
                 return 0
-            return count
+            return count  # type: ignore[no-any-return]
 
     n_records = fetch_status()
     while True:
@@ -291,7 +293,7 @@ def poll_posting_percent(posting_id: UUID) -> Generator[float, None, None]:
             percent = session.scalar(percent_query)
             if percent is None:
                 return 0.0
-            return percent
+            return percent  # type: ignore[no-any-return]
 
     percent = fetch_percent()
     while True:
@@ -510,7 +512,7 @@ class ClusterProcess(mp.Process):
 
     def _get_records(self, db: orm.Session) -> list[JobRecord]:
         q = JobRecord.get_available(self.batchsize)
-        jobs = list(db.scalars(q))
+        jobs = list(db.scalars(q))  # type: ignore[attr-defined]
         return jobs
 
     def nominal_execution(self, job: JobRecord):
@@ -607,7 +609,7 @@ class ClusterProcess(mp.Process):
                         "to aquire workload"
                     )
                     q = (
-                        sa.update(JobRecord)
+                        sa.update(JobRecord)  # type: ignore[arg-type]
                         .values(status=JobStatus.executing)
                         .where(JobRecord.id.in_(ids))
                     )
@@ -631,7 +633,7 @@ class ClusterProcess(mp.Process):
 
         with Session() as db:
             job_q = sa.select(JobRecord).where(JobRecord.id.in_(ids))
-            jobs = list(db.scalars(job_q))
+            jobs = list(db.scalars(job_q))  # type: ignore[attr-defined]
 
             for job in jobs:
                 self.process_job(db, job)

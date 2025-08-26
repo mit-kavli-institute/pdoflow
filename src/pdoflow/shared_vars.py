@@ -79,8 +79,8 @@ def set_shared_variable(
     """
     # Try to update existing variable first
     stmt = (
-        sa.update(JobPostingVariable)
-        .where(
+        sa.update(JobPostingVariable)  # type: ignore[arg-type]
+        .where(  # type: ignore[call-arg]
             JobPostingVariable.posting_id == posting_id,
             JobPostingVariable.key == key,
         )
@@ -164,7 +164,9 @@ def update_shared_variable(
     ... )
     """
     # Get current value with lock
-    base_q = sa.update(JobPostingVariable).where(
+    base_q = sa.update(
+        JobPostingVariable
+    ).where(  # type: ignore[arg-type]  # type: ignore[call-arg]
         JobPostingVariable.key == key,
         JobPostingVariable.posting_id == posting_id,
     )
@@ -238,7 +240,9 @@ def delete_shared_variable(
     bool
         True if variable was deleted, False if it didn't exist
     """
-    stmt = sa.delete(JobPostingVariable).where(
+    stmt = sa.delete(
+        JobPostingVariable
+    ).where(  # type: ignore[arg-type]  # type: ignore[call-arg]
         JobPostingVariable.posting_id == posting_id,
         JobPostingVariable.key == key,
     )
@@ -246,7 +250,7 @@ def delete_shared_variable(
     result = db.execute(stmt)
     db.flush()
 
-    return result.rowcount > 0
+    return result.rowcount > 0  # type: ignore[no-any-return]
 
 
 def list_shared_variables(
@@ -271,7 +275,7 @@ def list_shared_variables(
         JobPostingVariable.posting_id == posting_id
     )
 
-    variables = db.scalars(q).all()
+    variables = db.scalars(q).all()  # type: ignore[attr-defined]
     return {var.key: var.value for var in variables}
 
 

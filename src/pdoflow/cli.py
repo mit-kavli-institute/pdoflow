@@ -182,7 +182,7 @@ def priority_stats(table_format: str):
 def execute_job(uuid: str):
     with Session() as db:
         q = (
-            sa.update(JobRecord)
+            sa.update(JobRecord)  # type: ignore[arg-type]
             .values(status=JobStatus.executing)
             .where(JobRecord.id == uuid)
         )
