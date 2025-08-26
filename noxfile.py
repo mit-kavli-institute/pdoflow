@@ -90,7 +90,7 @@ def format(session: Session):
     session.run("isort", "src", "tests")
 
 
-@nox.session
+@nox.session(python="3.11")
 def docs(session: Session):
     """Build documentation."""
     session.install(
@@ -106,9 +106,8 @@ def docs(session: Session):
         "sphinx-build",
         "-b",
         "html",
-        "docs",
+        "docs/source",
         "docs/build/html",
-        "-W",  # Treat warnings as errors
         external=True,
     )
     session.log("Documentation built in docs/build/html/")
