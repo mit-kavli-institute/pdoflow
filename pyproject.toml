@@ -16,7 +16,7 @@ dependencies = [
     "deal==4.24.4",
     "sqlalchemy==2.0.29",
     "click==8.1",
-    "configurables @ git+ssh://git@tessgit.mit.edu/wcfong/configurables.git",
+    "kavli-configurables",
     "psycopg[binary]>=3",
     "loguru==0.7.2",
     "tabulate==0.9.0"
@@ -31,13 +31,13 @@ pdoflow = 'pdoflow.cli:pdoflow_main'
 
 [project.optional-dependencies]
 dev = [
+    "coverage",
     "pytest==8.2.0",
-    "pytest-postgresql==6.0.0",
+    "pytest-timeout",
+    "pytest-xdist",
     "mypy==1.10",
-    "sqlalchemy-stubs==0.4",
+    "types-tabulate",
     "black==24.4.2",
-    "tox==4.0",
-    "tox-docker==4.1.0",
     "hypothesis==6.100.5"
 ]
 
@@ -63,9 +63,12 @@ omit = [
     "*/tests/*",
     "*/__pycache__/*",
     "*/site-packages/*",
+    "*/sitecustomize.py",
 ]
 parallel = true
+concurrency = ["multiprocessing", "thread"]
 context = "{env_name}"
+sigterm = true
 
 [tool.coverage.paths]
 source = [
@@ -104,10 +107,9 @@ testpaths = ["tests"]
 pythonpath = ["src"]
 addopts = [
     "--strict-markers",
-    "--tb=short",
-    "--cov-context=test",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
 ]
+timeout = 30

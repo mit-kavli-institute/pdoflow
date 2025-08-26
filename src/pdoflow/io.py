@@ -1,3 +1,5 @@
+import os
+
 import configurables as conf
 import sqlalchemy as sa
 from sqlalchemy import orm
@@ -5,6 +7,26 @@ from sqlalchemy import orm
 from pdoflow.utils import register_process_guards
 
 DEFAULT_CONFIG_PATH = "~/.config/pdoflow/db.conf"
+
+
+def configure_engine_from_env(**engine_kwargs):
+    """
+    Configure an SQLAlchemy engine from environment variables.
+    Used primarily in CI/testing environments.
+    """
+    url = sa.URL.create(
+        "postgresql+psycopg",
+        database=os.getenv("POSTGRES_DB", "postgres"),
+        username=os.getenv("POSTGRES_USER", "postgres"),
+        password=os.getenv("POSTGRES_PASSWORD", ""),
+        host=os.getenv("POSTGRES_HOST", "localhost"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+    )
+
+    engine = register_process_guards(
+        sa.create_engine(url, poolclass=sa.pool.NullPool, **engine_kwargs)
+    )
+    return engine
 
 
 @conf.configurable("pdoflow")
@@ -37,8 +59,15 @@ def configure_engine(
 
 Session = orm.sessionmaker(expire_on_commit=False)
 
-try:
-    Session.configure(bind=configure_engine(DEFAULT_CONFIG_PATH))
-except FileNotFoundError:
-    # Keep session unbound for manual configuration later
-    pass
+# Try to configure session in order of precedence:
+# 1. Environment variables (for CI/testing)
+# 2. Configuration file
+# 3. Leave unbound for manual configuration
+if os.getenv("POSTGRES_HOST"):
+    Session.configure(bind=configure_engine_from_env())
+else:
+    try:
+        Session.configure(bind=configure_engine(DEFAULT_CONFIG_PATH))
+    except FileNotFoundError:
+        # Keep session unbound for manual configuration later
+        pass

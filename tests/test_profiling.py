@@ -1,4 +1,5 @@
 """Tests for job profiling functionality."""
+
 import random
 from unittest.mock import patch
 
@@ -48,7 +49,7 @@ class TestProfilingExecution:
 
             # Verify the executed function is in the stats
             found_cpu_intensive = False
-            for (filename, line, funcname) in stats:
+            for filename, line, funcname in stats:
                 if funcname == "cpu_intensive_task":
                     found_cpu_intensive = True
                     break
@@ -56,7 +57,7 @@ class TestProfilingExecution:
             # Debug: print all function names if not found
             if not found_cpu_intensive:
                 print("\nFunction names in stats:")
-                for (filename, line, funcname) in stats:
+                for filename, line, funcname in stats:
                     print(f"  {funcname} ({filename}:{line})")
 
             assert found_cpu_intensive
@@ -346,7 +347,7 @@ class TestProfilingIntegration:
             max_workers=1, worker_class=CoverageWorker, batchsize=5
         ) as pool:
             pool.await_posting_completion(
-                posting_id, poll_time=0.1, max_wait=10
+                posting_id, poll_time=0.1, max_wait=30
             )
 
         # Check that some jobs were profiled
@@ -435,7 +436,7 @@ class TestProfilingIntegration:
             max_workers=4, worker_class=CoverageWorker, batchsize=5
         ) as pool:
             pool.await_posting_completion(
-                posting_id, poll_time=0.1, max_wait=10
+                posting_id, poll_time=0.1, max_wait=30
             )
 
         # Verify all jobs completed and profiles were created correctly

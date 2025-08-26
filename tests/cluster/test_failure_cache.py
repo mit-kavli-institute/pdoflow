@@ -1,4 +1,5 @@
 """Tests for the _FailureCache class."""
+
 import uuid
 
 from pdoflow.cluster import _FailureCache

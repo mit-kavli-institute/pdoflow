@@ -1,0 +1,187 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+          - prerelease
+      prerelease_suffix:
+        description: 'Prerelease suffix (e.g., alpha, beta, rc)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump-version:
+    name: Bump Version
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Get current version
+      id: current_version
+      run: |
+        CURRENT_VERSION=$(grep -E "^version = " pyproject.toml | cut -d'"' -f2)
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current version: $CURRENT_VERSION"
+
+    - name: Calculate new version
+      id: new_version
+      run: |
+        CURRENT_VERSION=${{ steps.current_version.outputs.current_version }}
+        BUMP_TYPE=${{ github.event.inputs.bump_type }}
+        PRERELEASE_SUFFIX=${{ github.event.inputs.prerelease_suffix }}
+
+        # Parse current version
+        if [[ "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-([a-zA-Z0-9.-]+))?(\+([a-zA-Z0-9.-]+))?$ ]]; then
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          PATCH="${BASH_REMATCH[3]}"
+          CURRENT_PRERELEASE="${BASH_REMATCH[5]}"
+        else
+          echo "Error: Current version does not follow semantic versioning"
+          exit 1
+        fi
+
+        # Calculate new version based on bump type
+        case "$BUMP_TYPE" in
+          major)
+            NEW_VERSION="$((MAJOR + 1)).0.0"
+            ;;
+          minor)
+            NEW_VERSION="${MAJOR}.$((MINOR + 1)).0"
+            ;;
+          patch)
+            NEW_VERSION="${MAJOR}.${MINOR}.$((PATCH + 1))"
+            ;;
+          prerelease)
+            if [[ -z "$PRERELEASE_SUFFIX" ]]; then
+              echo "Error: Prerelease suffix is required for prerelease bump"
+              exit 1
+            fi
+            # If current version is already a prerelease, increment the number
+            if [[ -n "$CURRENT_PRERELEASE" && "$CURRENT_PRERELEASE" =~ ^${PRERELEASE_SUFFIX}\.([0-9]+)$ ]]; then
+              PRERELEASE_NUM="${BASH_REMATCH[1]}"
+              NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-${PRERELEASE_SUFFIX}.$((PRERELEASE_NUM + 1))"
+            else
+              NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}-${PRERELEASE_SUFFIX}.1"
+            fi
+            ;;
+        esac
+
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "New version: $NEW_VERSION"
+
+    - name: Create feature branch
+      run: |
+        BRANCH_NAME="version-bump-${{ steps.new_version.outputs.new_version }}"
+        git checkout -b "$BRANCH_NAME"
+        echo "Created branch: $BRANCH_NAME"
+
+    - name: Update version in pyproject.toml
+      run: |
+        NEW_VERSION=${{ steps.new_version.outputs.new_version }}
+        sed -i "s/^version = \".*\"/version = \"$NEW_VERSION\"/" pyproject.toml
+        echo "Updated pyproject.toml with version $NEW_VERSION"
+
+    - name: Commit changes
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add pyproject.toml
+        git commit -m "chore: bump version to ${{ steps.new_version.outputs.new_version }}"
+
+    - name: Push changes
+      run: |
+        BRANCH_NAME="version-bump-${{ steps.new_version.outputs.new_version }}"
+        git push origin "$BRANCH_NAME"
+
+    - name: Create Pull Request
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        branch: version-bump-${{ steps.new_version.outputs.new_version }}
+        title: "chore: bump version to ${{ steps.new_version.outputs.new_version }}"
+        body: |
+          ## Version Bump
+
+          This PR bumps the version from `${{ steps.current_version.outputs.current_version }}` to `${{ steps.new_version.outputs.new_version }}`.
+
+          **Bump type**: ${{ github.event.inputs.bump_type }}
+
+          ### Checklist
+          - [ ] Verify the version number is correct
+          - [ ] Ensure all tests pass
+          - [ ] Update CHANGELOG.md if necessary
+
+          ### Next Steps
+          After merging this PR:
+          1. Create a new tag: `git tag v${{ steps.new_version.outputs.new_version }}`
+          2. Push the tag: `git push origin v${{ steps.new_version.outputs.new_version }}`
+          3. The release workflow will automatically trigger
+
+          ---
+          *This PR was automatically created by the Version Bump workflow.*
+        labels: |
+          version-bump
+          automated
+        assignees: ${{ github.actor }}
+
+  auto-tag:
+    name: Auto-tag on merge
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Check if version bump commit
+      id: check_commit
+      run: |
+        COMMIT_MSG=$(git log -1 --pretty=%B)
+        if [[ "$COMMIT_MSG" =~ ^chore:\ bump\ version\ to\ ([0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?)$ ]]; then
+          VERSION="${BASH_REMATCH[1]}"
+          echo "is_version_bump=true" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        else
+          echo "is_version_bump=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create and push tag
+      if: steps.check_commit.outputs.is_version_bump == 'true'
+      run: |
+        VERSION=${{ steps.check_commit.outputs.version }}
+        TAG="v$VERSION"
+
+        # Check if tag already exists
+        if git rev-parse "$TAG" >/dev/null 2>&1; then
+          echo "Tag $TAG already exists, skipping"
+          exit 0
+        fi
+
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git tag -a "$TAG" -m "Release version $VERSION"
+        git push origin "$TAG"
+        echo "Created and pushed tag: $TAG"

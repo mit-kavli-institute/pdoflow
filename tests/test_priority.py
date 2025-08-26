@@ -1,6 +1,7 @@
 import uuid
 from typing import List
 
+import pytest
 import sqlalchemy as sa
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
@@ -157,6 +158,7 @@ def test_backward_compatibility(db_session):
         assert all(job.priority == 0 for job in jobs)
 
 
+@pytest.mark.timeout(60)
 @given(
     st.lists(
         st.integers(min_value=-100, max_value=100),

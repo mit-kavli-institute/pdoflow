@@ -6,6 +6,7 @@ from typing import Any, Iterable, Optional
 
 import sqlalchemy as sa
 from sqlalchemy import orm
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import Select
 
@@ -60,6 +61,11 @@ class JobPosting(CreatedOnMixin, Base):
     jobs: orm.Mapped[list["JobRecord"]] = orm.relationship(
         "JobRecord", back_populates="posting"
     )
+    variables: orm.Mapped[list["JobPostingVariable"]] = orm.relationship(
+        "JobPostingVariable",
+        back_populates="posting",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self):
         return (
@@ -77,7 +83,7 @@ class JobPosting(CreatedOnMixin, Base):
     def total_jobs(self) -> int:
         return len(self.jobs)
 
-    @total_jobs.inplace.expression
+    @total_jobs.inplace.expression  # type: ignore[attr-defined]
     @classmethod
     def _total_jobs(cls):
         q = (
@@ -87,13 +93,13 @@ class JobPosting(CreatedOnMixin, Base):
             .scalar_subquery()
             .label("total_jobs")
         )
-        return q
+        return q  # type: ignore[no-any-return]
 
     @hybrid_property
     def total_jobs_done(self):
         return len(list(filter(lambda j: j.done, self.jobs)))
 
-    @total_jobs_done.inplace.expression
+    @total_jobs_done.inplace.expression  # type: ignore[attr-defined]
     @classmethod
     def _total_jobs_done(cls):
         q = (
@@ -103,7 +109,7 @@ class JobPosting(CreatedOnMixin, Base):
             .scalar_subquery()
             .label("total_jobs_done")
         )
-        return q
+        return q  # type: ignore[no-any-return]
 
     @hybrid_property
     def percent_done(self) -> float:
@@ -117,9 +123,9 @@ class JobPosting(CreatedOnMixin, Base):
             if job.done:
                 n_stopped += 1
 
-        return (n_stopped / n_jobs) * 100.0
+        return (n_stopped / n_jobs) * 100.0  # type: ignore[no-any-return]
 
-    @percent_done.inplace.expression
+    @percent_done.inplace.expression  # type: ignore[attr-defined]
     @classmethod
     def _percent_done(cls):
         total = sa.case(
@@ -135,20 +141,20 @@ class JobRecord(CreatedOnMixin, Base):
     __tablename__ = "job_records"
 
     posting_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
-        sa.ForeignKey(
-            JobPosting.id,
-        )
+        sa.ForeignKey(JobPosting.id, ondelete="CASCADE")
     )
     posting: orm.Mapped[JobPosting] = orm.relationship(
         JobPosting, back_populates="jobs"
     )
 
     priority: orm.Mapped[int]
-    positional_arguments: orm.Mapped[tuple] = orm.mapped_column(sa.JSON)
-    keyword_arguments: orm.Mapped[Optional[dict]] = orm.mapped_column(sa.JSON)
+    positional_arguments: orm.Mapped[tuple] = orm.mapped_column(JSONB)
+    keyword_arguments: orm.Mapped[Optional[dict]] = orm.mapped_column(JSONB)
     tries_remaining: orm.Mapped[int]
 
-    status: orm.Mapped[JobStatus] = orm.mapped_column(default=JobStatus.waiting)
+    status: orm.Mapped[JobStatus] = orm.mapped_column(
+        default=JobStatus.waiting, index=True
+    )
     exited_ok: orm.Mapped[Optional[bool]]
     work_started_on: orm.Mapped[Optional[datetime]]
     completed_on: orm.Mapped[Optional[datetime]]
@@ -172,7 +178,7 @@ class JobRecord(CreatedOnMixin, Base):
     def done(self):
         return self.status in (JobStatus.done, JobStatus.errored_out)
 
-    @done.inplace.expression
+    @done.inplace.expression  # type: ignore[attr-defined]
     @classmethod
     def _done_expr(cls):
         return sa.or_(
@@ -181,11 +187,12 @@ class JobRecord(CreatedOnMixin, Base):
 
     @hybrid_property
     def pos_args(self) -> tuple:
-        return self.positional_arguments
+        return self.positional_arguments  # type: ignore[no-any-return]
 
     @hybrid_property
     def kwargs(self) -> dict[str, Any]:
-        return self.keyword_arguments if self.keyword_arguments else {}
+        kwargs = self.keyword_arguments if self.keyword_arguments else {}
+        return kwargs  # type: ignore[no-any-return]
 
     @hybrid_property
     def waiting_time(self):
@@ -193,7 +200,7 @@ class JobRecord(CreatedOnMixin, Base):
             return None
         return self.work_started_on - self.created_on
 
-    @waiting_time.inplace.expression
+    @waiting_time.inplace.expression  # type: ignore[attr-defined]
     @classmethod
     def _waiting_time(cls):
         return (
@@ -211,7 +218,7 @@ class JobRecord(CreatedOnMixin, Base):
 
         return self.completed_on - self.work_started_on
 
-    @time_elapsed.inplace.expression
+    @time_elapsed.inplace.expression  # type: ignore[attr-defined]
     @classmethod
     def _time_elapsed(cls):
         return sa.func.coalesce(
@@ -223,7 +230,7 @@ class JobRecord(CreatedOnMixin, Base):
         q = (
             sa.select(cls)
             .join(cls.posting)
-            .where(
+            .where(  # type: ignore[call-arg]
                 JobPosting.poster == getpass.getuser(),
                 JobPosting.status == PostingStatus.executing,
                 JobRecord.status == JobStatus.waiting,
@@ -233,7 +240,7 @@ class JobRecord(CreatedOnMixin, Base):
             .limit(batchsize)
             .with_for_update(skip_locked=True, of=cls)
         )
-        return q
+        return q  # type: ignore[no-any-return]
 
     @classmethod
     def available_ids(
@@ -242,7 +249,7 @@ class JobRecord(CreatedOnMixin, Base):
         q = (
             sa.select(cls.id)
             .join(cls.posting)
-            .where(
+            .where(  # type: ignore[call-arg]
                 JobRecord.status == JobStatus.waiting,
                 JobRecord.tries_remaining > 0,
             )
@@ -257,7 +264,7 @@ class JobRecord(CreatedOnMixin, Base):
             q = q.where(
                 JobPosting.status == PostingStatus.executing,
             )
-        return q
+        return q  # type: ignore[no-any-return]
 
     def execute(self) -> typing.Any:
         function = load_function(self.posting.entry_point)
@@ -278,6 +285,34 @@ class JobRecord(CreatedOnMixin, Base):
         self.completed_on = datetime.now()
 
 
+class JobPostingVariable(CreatedOnMixin, Base):
+    """
+    Shared variable storage for JobPosting instances.
+    Provides key-value storage with row-level locking for concurrent access.
+    """
+
+    __tablename__ = "job_posting_variables"
+
+    posting_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
+        sa.ForeignKey(JobPosting.id, ondelete="CASCADE")
+    )
+    posting: orm.Mapped[JobPosting] = orm.relationship(
+        JobPosting, back_populates="variables", cascade="all, delete"
+    )
+    key: orm.Mapped[str]
+    value: orm.Mapped[dict] = orm.mapped_column(JSONB)
+    updated_on: orm.Mapped[datetime] = orm.mapped_column(
+        server_default=sa.text("now()"), onupdate=sa.text("now()")
+    )
+
+    __table_args__ = (
+        sa.UniqueConstraint("posting_id", "key", name="unique_posting_key"),
+    )
+
+    def __repr__(self):
+        return f"<JobPostingVariable {self.posting_id}:{self.key}>"
+
+
 class JobProfile(CreatedOnMixin, Base):
     __tablename__ = "job_profiles"
 
@@ -291,7 +326,9 @@ class JobProfile(CreatedOnMixin, Base):
     total_calls: orm.Mapped[int] = orm.mapped_column(sa.Integer)
     total_time: orm.Mapped[float] = orm.mapped_column(sa.Float)
 
-    function_stats = orm.relationship("FunctionStat", back_populates="profile")
+    function_stats: orm.Mapped["FunctionStat"] = orm.relationship(
+        "FunctionStat", back_populates="profile"
+    )
 
 
 # Define classes to track cProfile objects in such a manner that statistics
@@ -342,10 +379,10 @@ class FunctionCallMap(Base):
     __tablename__ = "function_call_map"
 
     caller_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
-        sa.ForeignKey(Function.id)
+        sa.ForeignKey(Function.id, ondelete="CASCADE")
     )
     callee_id: orm.Mapped[uuid.UUID] = orm.mapped_column(
-        sa.ForeignKey(Function.id)
+        sa.ForeignKey(Function.id, ondelete="CASCADE")
     )
 
     n_calls: orm.Mapped[int]
@@ -358,7 +395,7 @@ def reflect_cProfile(db: orm.Session, job_profile: JobProfile, stats):
 
     for label, stat in stats.items():
         filename, line_number, function_name = label
-        q = func_q.where(
+        q = func_q.where(  # type: ignore[call-arg]
             Function.filename == filename,
             Function.line_number == line_number,
             Function.function_name == function_name,

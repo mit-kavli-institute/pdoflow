@@ -1,4 +1,5 @@
 """Tests for the job decorator."""
+
 import pytest
 
 from pdoflow import cluster, registry

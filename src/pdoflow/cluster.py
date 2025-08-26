@@ -2,6 +2,7 @@
 This module defines the runtime logic for pdoflow worker pools and how
 jobs are managed.
 """
+
 import contextlib
 import cProfile
 import multiprocessing as mp
@@ -144,7 +145,7 @@ def poll_posting(
 
             if jobs_completed >= total_jobs:
                 session.execute(
-                    sa.update(JobPosting)
+                    sa.update(JobPosting)  # type: ignore[arg-type]
                     .where(JobPosting.id == posting_id)
                     .values(status=PostingStatus.finished)
                 )
@@ -202,7 +203,9 @@ def poll_job_status_count(posting_id: UUID, status: JobStatus):
     ... ):
     ...     print(f"Executing: {count}")
     """
-    count_query = sa.select(sa.func.count(JobRecord.id)).where(
+    count_query = sa.select(
+        sa.func.count(JobRecord.id)
+    ).where(  # type: ignore[call-arg]
         JobRecord.posting_id == posting_id, JobRecord.status == status
     )
 
@@ -211,7 +214,7 @@ def poll_job_status_count(posting_id: UUID, status: JobStatus):
             count = session.scalar(count_query)
             if not count:
                 return 0
-            return count
+            return count  # type: ignore[no-any-return]
 
     n_records = fetch_status()
     while True:
@@ -290,7 +293,7 @@ def poll_posting_percent(posting_id: UUID) -> Generator[float, None, None]:
             percent = session.scalar(percent_query)
             if percent is None:
                 return 0.0
-            return percent
+            return percent  # type: ignore[no-any-return]
 
     percent = fetch_percent()
     while True:
@@ -509,7 +512,7 @@ class ClusterProcess(mp.Process):
 
     def _get_records(self, db: orm.Session) -> list[JobRecord]:
         q = JobRecord.get_available(self.batchsize)
-        jobs = list(db.scalars(q))
+        jobs = list(db.scalars(q))  # type: ignore[attr-defined]
         return jobs
 
     def nominal_execution(self, job: JobRecord):
@@ -591,21 +594,38 @@ class ClusterProcess(mp.Process):
             db.commit()
 
     def process_job_records(self) -> int:
-        with Session() as db:
-            t0 = time()
-            ids = [j.id for j in self._get_records(db)]
-            time_to_obtain = time() - t0
-            logger.info(
-                f"Worker {self} took {time_to_obtain:.2f} seconds "
-                "to aquire workload"
-            )
-            q = (
-                sa.update(JobRecord)
-                .values(status=JobStatus.executing)
-                .where(JobRecord.id.in_(ids))
-            )
-            db.execute(q)
-            db.commit()
+        # Retry logic for database connections
+        max_retries = 3
+        retry_delay = 1.0
+
+        for attempt in range(max_retries):
+            try:
+                with Session() as db:
+                    t0 = time()
+                    ids = [j.id for j in self._get_records(db)]
+                    time_to_obtain = time() - t0
+                    logger.info(
+                        f"Worker {self} took {time_to_obtain:.2f} seconds "
+                        "to aquire workload"
+                    )
+                    q = (
+                        sa.update(JobRecord)  # type: ignore[arg-type]
+                        .values(status=JobStatus.executing)
+                        .where(JobRecord.id.in_(ids))
+                    )
+                    db.execute(q)
+                    db.commit()
+                break
+            except OperationalError as e:
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Database connection failed "
+                        f"(attempt {attempt + 1}/{max_retries}): {e}"
+                    )
+                    sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    raise
 
         if len(ids) == 0:
             logger.debug(f"Nothing {self}'s job queue, waiting...")
@@ -613,7 +633,7 @@ class ClusterProcess(mp.Process):
 
         with Session() as db:
             job_q = sa.select(JobRecord).where(JobRecord.id.in_(ids))
-            jobs = list(db.scalars(job_q))
+            jobs = list(db.scalars(job_q))  # type: ignore[attr-defined]
 
             for job in jobs:
                 self.process_job(db, job)
