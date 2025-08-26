@@ -53,6 +53,15 @@ jobs:
           ${{ runner.os }}-pip-${{ matrix.python-version }}-
           ${{ runner.os }}-pip-
 
+    - name: Cache nox environments
+      uses: actions/cache@v4
+      with:
+        path: .nox
+        key: ${{ runner.os }}-nox-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml', 'noxfile.py') }}
+        restore-keys: |
+          ${{ runner.os }}-nox-${{ matrix.python-version }}-
+          ${{ runner.os }}-nox-
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
@@ -96,24 +105,25 @@ jobs:
           ${{ runner.os }}-pip-lint-
           ${{ runner.os }}-pip-
 
-    - name: Install dependencies
+    - name: Cache nox environments
+      uses: actions/cache@v4
+      with:
+        path: .nox
+        key: ${{ runner.os }}-nox-lint-${{ hashFiles('pyproject.toml', 'noxfile.py') }}
+        restore-keys: |
+          ${{ runner.os }}-nox-lint-
+          ${{ runner.os }}-nox-
+
+    - name: Install nox
       run: |
         python -m pip install --upgrade pip
-        pip install nox black flake8 mypy sqlalchemy-stubs
+        pip install nox
 
-    - name: Run flake8
-      run: |
-        pip install -e . --extra-index-url https://mit-kavli-institute.github.io/MIT-Kavli-PyPi/
-        flake8 src
+    - name: Run linting checks
+      run: nox -s lint
 
-    - name: Run mypy
-      run: |
-        mypy src
-
-    - name: Check black formatting
-      run: |
-        pip install black==24.4.2
-        black --check src tests
+    - name: Run type checking
+      run: nox -s mypy
 
   coverage:
     name: Combine Coverage
@@ -128,10 +138,19 @@ jobs:
       with:
         python-version: "3.11"
 
-    - name: Install dependencies
+    - name: Cache nox environments
+      uses: actions/cache@v4
+      with:
+        path: .nox
+        key: ${{ runner.os }}-nox-coverage-${{ hashFiles('pyproject.toml', 'noxfile.py') }}
+        restore-keys: |
+          ${{ runner.os }}-nox-coverage-
+          ${{ runner.os }}-nox-
+
+    - name: Install nox
       run: |
         python -m pip install --upgrade pip
-        pip install coverage[toml]
+        pip install nox
 
     - name: Download all coverage data
       uses: actions/download-artifact@v4
@@ -151,13 +170,9 @@ jobs:
           echo "has_coverage=false" >> $GITHUB_OUTPUT
         fi
 
-    - name: Combine coverage
+    - name: Combine coverage and check minimum
       if: steps.check-coverage-files.outputs.has_coverage == 'true'
-      run: |
-        coverage combine
-        coverage report --fail-under=80
-        coverage html
-        coverage json
+      run: nox -s coverage_report
 
     - name: Create empty coverage report if needed
       if: steps.check-coverage-files.outputs.has_coverage == 'false'
@@ -178,7 +193,9 @@ jobs:
         if-no-files-found: warn
 
     - name: Display coverage summary
+      if: steps.check-coverage-files.outputs.has_coverage == 'true'
       run: |
+        pip install coverage[toml]
         echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
         coverage report >> $GITHUB_STEP_SUMMARY
@@ -196,16 +213,31 @@ jobs:
       with:
         python-version: "3.11"
 
-    - name: Install dependencies
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-docs-${{ hashFiles('pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-docs-
+          ${{ runner.os }}-pip-
+
+    - name: Cache nox environments
+      uses: actions/cache@v4
+      with:
+        path: .nox
+        key: ${{ runner.os }}-nox-docs-${{ hashFiles('pyproject.toml', 'noxfile.py') }}
+        restore-keys: |
+          ${{ runner.os }}-nox-docs-
+          ${{ runner.os }}-nox-
+
+    - name: Install nox
       run: |
         python -m pip install --upgrade pip
         pip install nox
 
-    - name: Build docs
-      run: |
-        pip install -e . --extra-index-url https://mit-kavli-institute.github.io/MIT-Kavli-PyPi/
-        pip install sphinx sphinx-rtd-theme
-        cd docs && make html
+    - name: Build documentation
+      run: nox -s docs
 
     - name: Upload documentation
       uses: actions/upload-artifact@v4
