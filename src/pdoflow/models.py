@@ -326,7 +326,7 @@ class JobProfile(CreatedOnMixin, Base):
     total_calls: orm.Mapped[int] = orm.mapped_column(sa.Integer)
     total_time: orm.Mapped[float] = orm.mapped_column(sa.Float)
 
-    function_stats: Any = orm.relationship(
+    function_stats: orm.Mapped["FunctionStat"] = orm.relationship(
         "FunctionStat", back_populates="profile"
     )
 

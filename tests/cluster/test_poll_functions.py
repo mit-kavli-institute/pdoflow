@@ -10,7 +10,6 @@ from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from pdoflow import cluster, models
-from pdoflow.io import Session
 
 from .. import strategies as pdo_st
 
@@ -82,9 +81,7 @@ def test_poll_posting_percent_consistency(
 ):
     """Test that poll_posting_percent yields consistent values with
     database."""
-    with db_session:
-        posting = db_session.merge(posting)
-        posting_id = posting.id
+    posting_id = posting.id
 
     # Get values from generator
     gen_percentages = list(
@@ -95,20 +92,19 @@ def test_poll_posting_percent_consistency(
     assert all(p == gen_percentages[0] for p in gen_percentages)
 
     # Verify against database query
-    with Session() as session:
-        db_percent = session.scalar(
-            sa.select(models.JobPosting.percent_done).where(
-                models.JobPosting.id == posting_id
-            )
+    db_percent = db_session.scalar(
+        sa.select(models.JobPosting.percent_done).where(
+            models.JobPosting.id == posting_id
         )
+    )
 
-        for gen_percent in gen_percentages:
-            if db_percent is None:
-                assert gen_percent == 0.0
-            elif isnan(db_percent):
-                assert isnan(gen_percent)
-            else:
-                assert gen_percent == db_percent
+    for gen_percent in gen_percentages:
+        if db_percent is None:
+            assert gen_percent == 0.0
+        elif isnan(db_percent):
+            assert isnan(gen_percent)
+        else:
+            assert gen_percent == db_percent
 
 
 @given(pdo_st.posting_with_records(min_size=2, max_size=5))
