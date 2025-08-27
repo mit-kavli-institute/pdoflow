@@ -7,7 +7,7 @@ where = ["src"]
 
 [project]
 name = "pdoflow"
-version = "0.1.14-beta.1"
+version = "0.1.14-beta.2"
 description = "A package to manage PDO compute nodes cooperatively."
 authors = [{name="William Fong", email="willfong@mit.edu"}]
 readme = "README.md"
