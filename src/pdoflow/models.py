@@ -11,7 +11,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.sql.expression import Select
 
 from pdoflow.status import JobStatus, PostingStatus
-from pdoflow.utils import load_function
+from pdoflow.utils import get_signature, load_function
 
 
 class Base(orm.DeclarativeBase):
@@ -267,8 +267,34 @@ class JobRecord(CreatedOnMixin, Base):
         return q  # type: ignore[no-any-return]
 
     def execute(self) -> typing.Any:
+        """
+        Execute the job function with its arguments.
+
+        Loads the function from the entry point, prepares arguments,
+        and executes it. If the function accepts a '_pdoflow_id' parameter,
+        the job's UUID will be automatically passed to enable
+        self-identification.
+
+        Returns
+        -------
+        Any
+            The return value from the executed function.
+
+        Notes
+        -----
+        This method updates the following job attributes:
+        - Sets work_started_on timestamp before execution
+        - Sets completed_on timestamp after execution
+        - Updates status to JobStatus.done on success
+        - Sets exited_ok to True on success
+        """
         function = load_function(self.posting.entry_point)
+        signature = get_signature(function)
         kwargs = self.keyword_arguments if self.keyword_arguments else {}
+
+        if "_pdoflow_id" in signature.parameters:
+            kwargs["_pdoflow_id"] = self.id
+
         self.work_started_on = datetime.now()
 
         result = function(*self.positional_arguments, **kwargs)

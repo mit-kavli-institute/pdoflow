@@ -64,11 +64,61 @@ def register_process_guards(engine: "sa.Engine"):
     message="Given entry point must be ascii",
 )
 @lru_cache
-def load_function(path: str):
+def load_function(path: str) -> typing.Callable:
+    """
+    Dynamically load a function from a module path.
+
+    Parameters
+    ----------
+    path : str
+        Fully qualified path to the function
+        (e.g., 'module.submodule.function_name').
+        Must contain only ASCII characters.
+
+    Returns
+    -------
+    Callable
+        The loaded function object.
+
+    Raises
+    ------
+    ImportError
+        If the module cannot be imported.
+    AttributeError
+        If the function doesn't exist in the module.
+
+    Notes
+    -----
+    Results are cached using functools.lru_cache for performance optimization.
+    """
     module_path, func_name = path.rsplit(".", maxsplit=1)
     module = __import__(module_path, fromlist=[func_name])
     function = getattr(module, func_name)
     return function
+
+
+@lru_cache
+def get_signature(func: typing.Callable) -> inspect.Signature:
+    """
+    Get the signature of a callable function.
+
+    Parameters
+    ----------
+    func : Callable
+        The callable to inspect.
+
+    Returns
+    -------
+    inspect.Signature
+        The function's signature containing parameter information.
+
+    Notes
+    -----
+    Results are cached using functools.lru_cache for performance optimization.
+    This is used to determine if a function accepts the '_pdoflow_id' parameter.
+    """
+    spec = inspect.signature(func)
+    return spec
 
 
 def make_warning_logger(logging_level: str):
