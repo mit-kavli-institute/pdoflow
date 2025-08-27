@@ -1,0 +1,170 @@
+name: Staging Beta Release
+
+on:
+  push:
+    branches: [ staging ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  create-beta-release:
+    name: Create Beta Release
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Get current version
+      id: get_version
+      run: |
+        CURRENT_VERSION=$(grep -E "^version = " pyproject.toml | cut -d'"' -f2)
+        echo "current_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+        echo "Current version: $CURRENT_VERSION"
+
+    - name: Calculate next beta version
+      id: next_version
+      run: |
+        CURRENT_VERSION=${{ steps.get_version.outputs.current_version }}
+
+        # Check if current version is already a beta
+        if [[ "$CURRENT_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-beta\.([0-9]+)$ ]]; then
+          # Increment beta number
+          BASE_VERSION="${BASH_REMATCH[1]}"
+          BETA_NUM="${BASH_REMATCH[2]}"
+          NEXT_BETA_NUM=$((BETA_NUM + 1))
+          NEW_VERSION="${BASE_VERSION}-beta.${NEXT_BETA_NUM}"
+        elif [[ "$CURRENT_VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          # Convert regular version to beta
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          PATCH="${BASH_REMATCH[3]}"
+          # Increment patch for beta
+          NEXT_PATCH=$((PATCH + 1))
+          NEW_VERSION="${MAJOR}.${MINOR}.${NEXT_PATCH}-beta.1"
+        else
+          echo "Error: Unexpected version format: $CURRENT_VERSION"
+          exit 1
+        fi
+
+        echo "new_version=$NEW_VERSION" >> $GITHUB_OUTPUT
+        echo "Next beta version: $NEW_VERSION"
+
+    - name: Check if tag exists
+      id: check_tag
+      run: |
+        NEW_VERSION=${{ steps.next_version.outputs.new_version }}
+        if git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
+          echo "Tag v$NEW_VERSION already exists"
+          echo "tag_exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "tag_exists=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Update version in pyproject.toml
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      run: |
+        NEW_VERSION=${{ steps.next_version.outputs.new_version }}
+        sed -i "s/^version = .*/version = \"$NEW_VERSION\"/" pyproject.toml
+
+        # Also update __version__ if it exists
+        if [ -f "src/pdoflow/__init__.py" ]; then
+          if grep -q "__version__" src/pdoflow/__init__.py; then
+            sed -i "s/__version__ = .*/__version__ = \"$NEW_VERSION\"/" src/pdoflow/__init__.py
+          fi
+        fi
+
+    - name: Configure Git
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+
+    - name: Commit version bump
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      run: |
+        git add pyproject.toml
+        if [ -f "src/pdoflow/__init__.py" ]; then
+          git add src/pdoflow/__init__.py
+        fi
+        git commit -m "chore: bump version to ${{ steps.next_version.outputs.new_version }} [skip ci]"
+
+    - name: Create and push tag
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      run: |
+        NEW_VERSION=${{ steps.next_version.outputs.new_version }}
+        git tag -a "v$NEW_VERSION" -m "Beta release v$NEW_VERSION"
+        git push origin staging
+        git push origin "v$NEW_VERSION"
+
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+
+    - name: Build package
+      run: python -m build
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        # Get the last stable version tag
+        LAST_STABLE=$(git tag -l "v[0-9]*.[0-9]*.[0-9]*" | grep -v beta | sort -V | tail -1)
+
+        if [[ -z "$LAST_STABLE" ]]; then
+          LAST_STABLE=$(git rev-list --max-parents=0 HEAD)
+          echo "No previous stable release found, using first commit"
+        fi
+
+        cat > release_notes.md << EOF
+        ## Beta Release ${{ steps.next_version.outputs.new_version }}
+
+        This is a beta release from the staging branch. It may contain experimental features and is not recommended for production use.
+
+        ### Changes since last stable release ($LAST_STABLE)
+
+        $(git log $LAST_STABLE..HEAD --pretty=format:"- %s (%h)" --no-merges | head -30)
+
+        ### Installation
+
+        \`\`\`bash
+        pip install pdoflow==${{ steps.next_version.outputs.new_version }}
+        \`\`\`
+
+        ### Testing
+
+        This beta release is for testing purposes. Please report any issues to the issue tracker.
+        EOF
+
+    - name: Create GitHub Release
+      if: steps.check_tag.outputs.tag_exists == 'false'
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v${{ steps.next_version.outputs.new_version }}
+        name: v${{ steps.next_version.outputs.new_version }} (Beta)
+        body_path: release_notes.md
+        files: dist/*
+        prerelease: true
+        target_commitish: staging
+
+    - name: Summary
+      run: |
+        if [[ "${{ steps.check_tag.outputs.tag_exists }}" == "true" ]]; then
+          echo "## Release Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "Tag v${{ steps.next_version.outputs.new_version }} already exists" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## Beta Release Created" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${{ steps.next_version.outputs.new_version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: staging" >> $GITHUB_STEP_SUMMARY
+          echo "- Status: Pre-release" >> $GITHUB_STEP_SUMMARY
+        fi
