@@ -598,6 +598,8 @@ class ClusterProcess(mp.Process):
         max_retries = 3
         retry_delay = 1.0
 
+        ids = []
+
         for attempt in range(max_retries):
             try:
                 with Session() as db:
@@ -634,7 +636,6 @@ class ClusterProcess(mp.Process):
         with Session() as db:
             job_q = sa.select(JobRecord).where(JobRecord.id.in_(ids))
             jobs = list(db.scalars(job_q))  # type: ignore[attr-defined]
-
             for job in jobs:
                 self.process_job(db, job)
 
