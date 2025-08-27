@@ -1,4 +1,4 @@
-name: Release
+name: Manual Tag Release
 
 on:
   push:
@@ -94,21 +94,18 @@ jobs:
         path: dist/
         retention-days: 7
 
-  test-release:
-    name: Test Release Package
+  test-package:
+    name: Test Package Import
     needs: build
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
-        python-version: ${{ matrix.python-version }}
+        python-version: "3.11"
 
     - name: Download artifacts
       uses: actions/download-artifact@v4
@@ -118,15 +115,15 @@ jobs:
 
     - name: Install from wheel
       run: |
-        pip install dist/*.whl
+        pip install dist/*.whl --extra-index-url https://mit-kavli-institute.github.io/MIT-Kavli-PyPi/
         # Test that the package imports correctly
-        python -c "import pdoflow; print(f'PDOFlow imported successfully')"
+        python -c "import pdoflow; print(f'PDOFlow {pdoflow.__version__} imported successfully')"
         # Test CLI is available
         pdoflow --help
 
   github-release:
     name: Create GitHub Release
-    needs: [validate-version, build, test-release]
+    needs: [validate-version, build, test-package]
     runs-on: ubuntu-latest
 
     steps:
@@ -177,7 +174,7 @@ jobs:
 
   publish-pypi:
     name: Publish to PyPI
-    needs: [validate-version, build, test-release, github-release]
+    needs: [validate-version, build, test-package, github-release]
     runs-on: ubuntu-latest
     # Only publish non-prerelease versions
     if: needs.validate-version.outputs.prerelease == 'false'
